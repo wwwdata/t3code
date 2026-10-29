@@ -39,6 +39,199 @@ function isSolidPowerlineSeparator(text: string): boolean {
   return text === POWERLINE_SOLID_RIGHT || text === POWERLINE_SOLID_LEFT;
 }
 
+const BLOCK_ELEMENT_MIN = 0x2580;
+const BLOCK_ELEMENT_MAX = 0x259f;
+const SHADE_LIGHT = 0x40 / 0xff;
+const SHADE_MEDIUM = 0x80 / 0xff;
+const SHADE_DARK = 0xc0 / 0xff;
+
+export interface BlockElementRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly alpha: number;
+}
+
+function singleCodePoint(text: string): number | null {
+  const codePoint = text.codePointAt(0);
+  if (codePoint === undefined) return null;
+  const width = codePoint > 0xffff ? 2 : 1;
+  return text.length === width ? codePoint : null;
+}
+
+function isBlockElement(text: string): boolean {
+  const codePoint = singleCodePoint(text);
+  return codePoint !== null && codePoint >= BLOCK_ELEMENT_MIN && codePoint <= BLOCK_ELEMENT_MAX;
+}
+
+function fullCell(width: number, height: number, alpha: number): BlockElementRect {
+  return { x: 0, y: 0, width, height, alpha };
+}
+
+function alignedRect(
+  cellWidth: number,
+  cellHeight: number,
+  xFromEnd: boolean,
+  xFraction: number,
+  yFromEnd: boolean,
+  yFraction: number,
+): BlockElementRect {
+  const width = Math.round(cellWidth * xFraction);
+  const height = Math.round(cellHeight * yFraction);
+  return {
+    x: xFromEnd ? cellWidth - width : 0,
+    y: yFromEnd ? cellHeight - height : 0,
+    width,
+    height,
+    alpha: 1,
+  };
+}
+
+function quadrants(
+  cellWidth: number,
+  cellHeight: number,
+  corners: {
+    readonly tl?: boolean;
+    readonly tr?: boolean;
+    readonly bl?: boolean;
+    readonly br?: boolean;
+  },
+): readonly BlockElementRect[] {
+  const midX = Math.round(cellWidth / 2);
+  const midY = Math.round(cellHeight / 2);
+  const rects: BlockElementRect[] = [];
+  if (corners.tl) rects.push({ x: 0, y: 0, width: midX, height: midY, alpha: 1 });
+  if (corners.tr) rects.push({ x: midX, y: 0, width: cellWidth - midX, height: midY, alpha: 1 });
+  if (corners.bl) rects.push({ x: 0, y: midY, width: midX, height: cellHeight - midY, alpha: 1 });
+  if (corners.br)
+    rects.push({ x: midX, y: midY, width: cellWidth - midX, height: cellHeight - midY, alpha: 1 });
+  return rects;
+}
+
+/** Cell-local integer rects. Edges that should touch the cell boundary sit on it. */
+export function blockElementRects(
+  text: string,
+  cellWidth: number,
+  cellHeight: number,
+): readonly BlockElementRect[] | null {
+  const codePoint = singleCodePoint(text);
+  if (codePoint === null || codePoint < BLOCK_ELEMENT_MIN || codePoint > BLOCK_ELEMENT_MAX)
+    return null;
+  const width = Math.max(1, Math.round(cellWidth));
+  const height = Math.max(1, Math.round(cellHeight));
+  switch (codePoint) {
+    case 0x2580:
+      return [alignedRect(width, height, false, 1, false, 0.5)];
+    case 0x2581:
+      return [alignedRect(width, height, false, 1, true, 0.125)];
+    case 0x2582:
+      return [alignedRect(width, height, false, 1, true, 0.25)];
+    case 0x2583:
+      return [alignedRect(width, height, false, 1, true, 0.375)];
+    case 0x2584:
+      return [alignedRect(width, height, false, 1, true, 0.5)];
+    case 0x2585:
+      return [alignedRect(width, height, false, 1, true, 0.625)];
+    case 0x2586:
+      return [alignedRect(width, height, false, 1, true, 0.75)];
+    case 0x2587:
+      return [alignedRect(width, height, false, 1, true, 0.875)];
+    case 0x2588:
+      return [fullCell(width, height, 1)];
+    case 0x2589:
+      return [alignedRect(width, height, false, 0.875, false, 1)];
+    case 0x258a:
+      return [alignedRect(width, height, false, 0.75, false, 1)];
+    case 0x258b:
+      return [alignedRect(width, height, false, 0.625, false, 1)];
+    case 0x258c:
+      return [alignedRect(width, height, false, 0.5, false, 1)];
+    case 0x258d:
+      return [alignedRect(width, height, false, 0.375, false, 1)];
+    case 0x258e:
+      return [alignedRect(width, height, false, 0.25, false, 1)];
+    case 0x258f:
+      return [alignedRect(width, height, false, 0.125, false, 1)];
+    case 0x2590:
+      return [alignedRect(width, height, true, 0.5, false, 1)];
+    case 0x2591:
+      return [fullCell(width, height, SHADE_LIGHT)];
+    case 0x2592:
+      return [fullCell(width, height, SHADE_MEDIUM)];
+    case 0x2593:
+      return [fullCell(width, height, SHADE_DARK)];
+    case 0x2594:
+      return [alignedRect(width, height, false, 1, false, 0.125)];
+    case 0x2595:
+      return [alignedRect(width, height, true, 0.125, false, 1)];
+    case 0x2596:
+      return quadrants(width, height, { bl: true });
+    case 0x2597:
+      return quadrants(width, height, { br: true });
+    case 0x2598:
+      return quadrants(width, height, { tl: true });
+    case 0x2599:
+      return quadrants(width, height, { tl: true, bl: true, br: true });
+    case 0x259a:
+      return quadrants(width, height, { tl: true, br: true });
+    case 0x259b:
+      return quadrants(width, height, { tl: true, tr: true, bl: true });
+    case 0x259c:
+      return quadrants(width, height, { tl: true, tr: true, br: true });
+    case 0x259d:
+      return quadrants(width, height, { tr: true });
+    case 0x259e:
+      return quadrants(width, height, { tr: true, bl: true });
+    case 0x259f:
+      return quadrants(width, height, { tr: true, bl: true, br: true });
+    default:
+      return null;
+  }
+}
+
+export function snappedCellBox(
+  padding: number,
+  originY: number,
+  column: number,
+  row: number,
+  metrics: GhosttyCellMetrics,
+): {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+} {
+  const left = Math.round(padding + column * metrics.width);
+  const right = Math.round(padding + (column + 1) * metrics.width);
+  const top = Math.round(originY + row * metrics.height);
+  const bottom = Math.round(originY + (row + 1) * metrics.height);
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+function fillBlockElement(
+  context: CanvasRenderingContext2D,
+  text: string,
+  color: GhosttyColor,
+  box: {
+    readonly left: number;
+    readonly top: number;
+    readonly width: number;
+    readonly height: number;
+  },
+): boolean {
+  const rects = blockElementRects(text, box.width, box.height);
+  if (!rects) return false;
+  context.save();
+  context.fillStyle = cssColor(color);
+  for (const rect of rects) {
+    context.globalAlpha = rect.alpha;
+    context.fillRect(box.left + rect.x, box.top + rect.y, rect.width, rect.height);
+  }
+  context.restore();
+  return true;
+}
+
 // Fallback fonts inset or scale these private-use glyphs, leaving a gap where
 // the separator should meet the next cell. Fill the triangle from the cell's
 // own edges instead, as native terminals do.
@@ -72,7 +265,14 @@ function ghosttyTextRunEnd(
       end += 1;
       continue;
     }
-    if (next.text.length === 0 || isSolidPowerlineSeparator(next.text) || !sameStyle(next)) break;
+    if (
+      next.text.length === 0 ||
+      isSolidPowerlineSeparator(next.text) ||
+      isBlockElement(next.text) ||
+      !sameStyle(next)
+    ) {
+      break;
+    }
     end += 1;
   }
   return end;
@@ -230,6 +430,18 @@ export function renderGhosttySnapshot(options: {
         runStart += 1;
         continue;
       }
+      if (isBlockElement(first.text)) {
+        if (!first.invisible) {
+          fillBlockElement(
+            context,
+            first.text,
+            first.foreground,
+            snappedCellBox(padding, originY, runStart, rowIndex, metrics),
+          );
+        }
+        runStart += 1;
+        continue;
+      }
       const runEnd = ghosttyTextRunEnd(row.cells, runStart, (cell) => sameTextStyle(cell, first));
       const text = row.cells
         .slice(runStart, runEnd)
@@ -302,7 +514,14 @@ export function renderGhosttySnapshot(options: {
         context.fillStyle = cssColor(snapshot.background);
         if (isSolidPowerlineSeparator(cell.text)) {
           fillSolidPowerlineSeparator(context, cell.text, left, top, metrics);
-        } else {
+        } else if (
+          !fillBlockElement(
+            context,
+            cell.text,
+            snapshot.background,
+            snappedCellBox(padding, originY, snapshot.cursorX, snapshot.cursorY, metrics),
+          )
+        ) {
           context.font = fontForCell(cell, fontSize, fontFamily);
           context.fillText(cell.text, left, top + metrics.baseline, metrics.width);
         }
