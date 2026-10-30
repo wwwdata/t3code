@@ -124,6 +124,14 @@ import { composerCodeBlockHighlight } from "./composerCodeBlockHighlight";
 import { importPastedComposerText } from "./composerInlineTokenPaste";
 import { didComposerSelectionChangeVisibly } from "./composerSelection";
 import type { ComposerDraftContextRecords } from "./composerContextPresentation";
+import {
+  ComposerVimExtension,
+  composerVimMode,
+  handleComposerVimKeyDown,
+  isComposerVimEscapeKey,
+  resetComposerVim,
+  setComposerVimEnabled,
+} from "~/composer-vim";
 
 export interface ComposerPromptEditorHandle {
   focus: () => void;
@@ -145,6 +153,7 @@ export interface ComposerPromptEditorProps {
   value: string;
   cursor: number;
   richTextEnabled?: boolean;
+  vimEnabled?: boolean;
   literalText?: boolean;
   contextRecords: ComposerDraftContextRecords;
   buildContextClipboardFragment?:
@@ -834,6 +843,7 @@ function createComposerExtensions(richText: boolean) {
       ...(richText ? {} : { bold: false, strike: false }),
     }),
     ComposerUndoGroupingExtension,
+    ComposerVimExtension,
     ComposerTextDirectionExtension,
     ComposerMentionExtension,
     ComposerSkillExtension,
@@ -927,6 +937,7 @@ function ComposerPromptEditorTiptapInner(
     value,
     cursor,
     richTextEnabled,
+    vimEnabled = false,
     literalText = false,
     contextRecords,
     buildContextClipboardFragment,
@@ -954,6 +965,7 @@ function ComposerPromptEditorTiptapInner(
     restoreFocusRef,
   } = props;
   const richText = !literalText && (richTextEnabled ?? false);
+  const [vimMode, setVimMode] = useState<"disabled" | "insert" | "normal">("disabled");
   const clampEditorCursor = (text: string, position: number) =>
     literalText
       ? Math.max(
@@ -1109,6 +1121,20 @@ function ComposerPromptEditorTiptapInner(
       editorProps: {
         attributes: editorAttributes,
         handleKeyDown: (view, event) => {
+          if (
+            isComposerVimEscapeKey(event) &&
+            composerVimMode(view.state) !== "disabled" &&
+            !view.composing &&
+            !event.isComposing &&
+            event.keyCode !== 229 &&
+            event.target === view.dom &&
+            readCallbacks().onCommandKeyDown?.("Escape", event)
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            return true;
+          }
+          if (handleComposerVimKeyDown(view, event)) return true;
           // In a right-to-left line the start is on the right.
           const backArrow = caretLineDirection(view.state) === "rtl" ? "ArrowRight" : "ArrowLeft";
           const boundary = event.metaKey
@@ -1441,9 +1467,17 @@ function ComposerPromptEditorTiptapInner(
       onSelectionUpdate: ({ editor: updated }) => {
         handleEditorChange(updated);
       },
+      onTransaction: ({ editor: updated }) => {
+        setVimMode(composerVimMode(updated.state));
+      },
     },
     [],
   );
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- configures the existing ProseMirror plugin without recreating the editor or its history
+  useLayoutEffect(() => {
+    if (editor) setComposerVimEnabled(editor.view, vimEnabled);
+  }, [editor, vimEnabled]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pushes the disabled prop into the imperative Tiptap editor via setEditable
   useEffect(() => {
@@ -1550,6 +1584,7 @@ function ComposerPromptEditorTiptapInner(
       citationRequestRef.current?.value === value ? citationRequestRef.current : null;
     if (previousSnapshot.value !== value) {
       saveCitationDraft(editor, previousSnapshot.value);
+      resetComposerVim(editor.view);
       editor.commands.setContent(
         buildDocJson(value, skillLabelFor, { styling: richText, literalText }),
         {
@@ -1813,6 +1848,15 @@ function ComposerPromptEditorTiptapInner(
               onCopyCapture={(event) => handleCopyCut(event, false)}
               onCutCapture={(event) => handleCopyCut(event, true)}
             />
+            {vimEnabled ? (
+              <span
+                role="status"
+                aria-label={`Vim ${vimMode === "normal" ? "Normal" : "Insert"} mode`}
+                className="pointer-events-none float-right mt-1 font-mono text-3xs text-muted-foreground"
+              >
+                {vimMode === "normal" ? "NORMAL" : "INSERT"}
+              </span>
+            ) : null}
             {isEmpty && contextRecords.size === 0 && placeholder ? (
               <div
                 className={cn(

@@ -30,6 +30,27 @@ at the end, leave the block. **Backspace** at the start of a code block turns it
 back into plain lines. Choose the language in a code block's corner to change
 it. Very large code blocks are shown without syntax highlighting.
 
+## Use Vim keys
+
+On web and desktop, turn on **Settings → Chat → Composer → Vim composer**.
+Each draft starts in Insert mode. Press **Escape** to enter Normal mode and
+**i** to type again. **Ctrl+[** also acts as Escape. Escape closes an open suggestion menu before changing mode.
+The mode label and static block caret show when Normal mode is active.
+
+Use `h`, `j`, `k`, `l`, `w`, `b`, `e`, `0`, `^`, `$`, `gg`, and `G` to move.
+Vertical motions follow logical lines, including lines inside code blocks.
+Counts work with motions and operators, such as `3w`, `2dd`, and `d2w`.
+Use `i`, `a`, `I`, `A`, `o`, or `O` to enter Insert mode.
+Use `x` to delete a character, or `d`, `c`, and `y` with a motion to delete,
+change, or yank. `dd`, `cc`, and `yy` act on whole lines. `p` and `P` paste
+after or before the cursor. Yanked chips stay available within the same draft.
+
+Press `u` to undo and **Ctrl+R** to redo. Typing uses the composer's usual undo
+groups, so pauses can split an Insert session into several undo steps.
+Your configured send shortcut and code-block Enter behavior work in both modes.
+Normal mode consumes other printable keys. Visual mode, search, dot repeat,
+replace, text objects, macros, and Ex commands are not supported.
+
 ## Attach files
 
 Attach up to 100 files per message. Each image can be up to 10 MiB, with at most

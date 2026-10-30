@@ -249,7 +249,7 @@ const file = {
 } satisfies ComposerFileAttachment;
 
 describe("composer context undo lifetime", () => {
-  async function mountComposer(destinationValue = "") {
+  async function mountComposer(destinationValue = "", vimEnabled = false) {
     const initialValue = `Draft A ${formatInlineContextReference(fileContextReference(file))}`;
     const editorRef = createRef<ComposerPromptEditorHandle>();
     let current: { value: string; files: ComposerFileAttachment[] };
@@ -270,6 +270,7 @@ describe("composer context undo lifetime", () => {
       });
       const editorProps = {
         draftKey: targetKey,
+        vimEnabled,
         editorRef,
         value: draft.value,
         cursor: 0,
@@ -349,6 +350,28 @@ describe("composer context undo lifetime", () => {
     await composer.deleteDraft();
     await composer.unmount();
     expect(retained.files.size).toBe(0);
+  });
+
+  it("keeps yanked file bytes available after Vim deletes and pastes the last chip", async () => {
+    await using composer = await mountComposer("", true);
+    const editor = composer.editor();
+    await act(async () => {
+      editor.view.focus();
+    });
+    await vi.waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
+    await userEvent.keyboard("{Escape}$y$0P");
+    expect(composer.draft().files).toEqual([file]);
+    const reference = formatInlineContextReference(fileContextReference(file));
+    expect(composer.draft().value.split(reference)).toHaveLength(3);
+
+    await userEvent.keyboard("$x0x");
+    expect(composer.draft().files).toEqual([]);
+    expect(composer.retained().files.get(fileContextReference(file).contextId)?.file).toBe(
+      file.file,
+    );
+    await userEvent.keyboard("p");
+    expect(composer.draft().files[0]?.file).toBe(file.file);
+    expect(await composer.draft().files[0]!.file!.text()).toBe("notes");
   });
 
   it.each(["", "Draft B"])(

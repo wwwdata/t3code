@@ -12,6 +12,7 @@ import type { ComposerHandleRef } from "../../composerHandleContext";
 import type { BranchToolbarHandle } from "../BranchToolbar";
 import { shouldTypeToFocusComposer } from "./composerFocusRedirect";
 import { composerShortcutCommands } from "./composerShortcuts";
+import { composerVimOwnsKey } from "../../composer-vim";
 
 /** Returning false lets the key event through untouched. */
 type ChatShortcutHandler = (context: {
@@ -45,6 +46,7 @@ interface ChatShortcutsInput {
  */
 export function useChatShortcuts(input: ChatShortcutsInput) {
   const handleShortcut = useEffectEvent((event: KeyboardEvent) => {
+    if (composerVimOwnsKey(event)) return;
     const { keybindings } = input;
     if (preventRepeatedTerminalCloseShortcut(event, keybindings)) {
       event.stopPropagation();
@@ -84,6 +86,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     event.stopPropagation();
   });
   const dismissFind = useEffectEvent((event: KeyboardEvent) => {
+    if (composerVimOwnsKey(event)) return;
     if (
       event.key !== "Escape" ||
       !input.threadFindActive ||

@@ -40,6 +40,12 @@ const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const encodeServerSettingsPatch = Schema.encodeSync(ServerSettingsPatch);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
 
+it("keeps Vim opt-in and persists the client preference", () => {
+  expect(decodeClientSettings({}).composerVimModeEnabled).toBe(false);
+  const patch = decodeClientSettingsPatch({ composerVimModeEnabled: true });
+  expect(encodeClientSettings(decodeClientSettings(patch)).composerVimModeEnabled).toBe(true);
+});
+
 describe("storage cleanup settings", () => {
   it("keeps cleanup disabled for existing installations", () => {
     expect(decodeServerSettings({}).worktreeCleanup).toBeNull();

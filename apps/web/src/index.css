@@ -1870,6 +1870,24 @@ code {
   margin-bottom: 0;
 }
 
+.composer-tiptap[data-composer-vim-mode="normal"] {
+  caret-color: transparent;
+}
+
+.composer-vim-caret {
+  background-color: var(--contrast-foreground);
+  color: var(--background);
+}
+
+.composer-vim-empty-caret {
+  position: absolute;
+  display: inline-block;
+  width: 0.6em;
+  height: 1.2em;
+  background-color: var(--contrast-foreground);
+  pointer-events: none;
+}
+
 .chat-markdown p,
 .chat-markdown ul,
 .chat-markdown ol,

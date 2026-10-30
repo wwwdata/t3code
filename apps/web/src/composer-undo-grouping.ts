@@ -14,6 +14,7 @@ export function markAsClipboardEdit(tr: Transaction, event: "paste" | "cut"): Tr
 
 function changeKindOf(tr: Transaction): ComposerChangeKind | null {
   if (!tr.docChanged) return null;
+  if (tr.getMeta("composer-vim-change") === true) return "insert";
   const uiEvent = tr.getMeta("uiEvent");
   if (uiEvent === "paste" || uiEvent === "drop" || uiEvent === "cut") return "other";
   // IME input replaces its own range on each keystroke; it is still typing.
