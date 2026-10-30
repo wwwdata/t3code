@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { GhosttyTerminalSurface } from "../../terminal/ghostty/surface";
 import { ensureLocalApi } from "../../localApi";
 import { useStableCallback } from "../../hooks/useStableCallback";
+import { useClientSettings } from "../../hooks/useSettings";
 import { terminalThemeFromApp } from "../ThreadTerminalDrawer";
 
 export default function ProviderAuthTerminal({
@@ -15,6 +16,11 @@ export default function ProviderAuthTerminal({
   readonly onResponse: (response: Extract<ProviderAuthResponse, { type: "terminal" }>) => void;
 }) {
   const [surface, setSurface] = useState<GhosttyTerminalSurface | null>(null);
+  const lineHeight = useClientSettings((settings) => settings.terminalLineHeight);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- applies row spacing to the provider sign-in terminal
+  useEffect(() => {
+    if (surface) void surface.setFont({ size: 13, lineHeight });
+  }, [surface, lineHeight]);
   const written = useRef(0);
   const [error, setError] = useState<string | null>(null);
   // The surface captures its callbacks once at creation.
@@ -33,7 +39,7 @@ export default function ProviderAuthTerminal({
     let created: GhosttyTerminalSurface | null = null;
     void GhosttyTerminalSurface.create(element, {
       theme: terminalThemeFromApp(element),
-      font: { size: 13 },
+      font: { size: 13, lineHeight },
       onData: (data) => respond({ type: "terminal", data }),
       onResize: (cols, rows) => respond({ type: "terminal", data: "", size: { cols, rows } }),
       onSelectionChange: () => {},

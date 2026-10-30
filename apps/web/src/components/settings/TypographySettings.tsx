@@ -193,8 +193,49 @@ function TerminalFontRow() {
             code: settings.fontFamilyCode,
             terminal: settings.fontFamilyTerminal,
           })}
+          lineHeight={settings.terminalLineHeight}
           size={settings.fontSizeTerminal}
         />
+      }
+    />
+  );
+}
+
+function TerminalLineHeightRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      {...searchableSetting("terminal-line-height")}
+      description="Row spacing in web and desktop terminals. 1 uses the font’s natural height."
+      resetAction={
+        settings.terminalLineHeight !== DEFAULT_UNIFIED_SETTINGS.terminalLineHeight ? (
+          <SettingResetButton
+            label="terminal line height"
+            onClick={() =>
+              updateSettings({ terminalLineHeight: DEFAULT_UNIFIED_SETTINGS.terminalLineHeight })
+            }
+          />
+        ) : null
+      }
+      control={
+        <Select
+          value={String(settings.terminalLineHeight)}
+          onValueChange={(value) => {
+            if (typeof value === "string") updateSettings({ terminalLineHeight: Number(value) });
+          }}
+        >
+          <SelectTrigger size="sm" className="w-22" aria-label="Terminal line height">
+            <SelectValue>{settings.terminalLineHeight}×</SelectValue>
+          </SelectTrigger>
+          <SelectPopup align="end" alignItemWithTrigger={false}>
+            {Array.from({ length: 21 }, (_, index) => 1 + index / 20).map((value) => (
+              <SelectItem hideIndicator key={value} value={String(value)}>
+                {value}×
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
       }
     />
   );
@@ -305,6 +346,7 @@ function SimpleFontRows() {
                 code: settings.fontFamilyCode,
                 terminal: settings.fontFamilyTerminal,
               })}
+              lineHeight={settings.terminalLineHeight}
               size={resolveTerminalFontSizePreference({
                 advanced: false,
                 code: settings.fontSizeCode,
@@ -337,6 +379,7 @@ export function TypographySection() {
   return (
     <SettingsSection id="typography" title="Typography">
       {showAdvanced ? <FontSettingsGroup /> : <SimpleFontRows />}
+      <TerminalLineHeightRow />
       <WordWrapRow />
       <AdvancedSettings
         targetIds={[searchableSetting("separate-fonts").id, searchableSetting("font-smoothing").id]}

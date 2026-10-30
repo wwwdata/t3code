@@ -282,6 +282,24 @@ describe("resolveIdleCompaction", () => {
   });
 });
 
+describe("terminal line height", () => {
+  it("preserves natural spacing for existing settings and round-trips fractional patches", () => {
+    expect(decodeClientSettings({}).terminalLineHeight).toBe(1);
+    expect(decodeClientSettingsPatch({})).not.toHaveProperty("terminalLineHeight");
+    const patch = decodeClientSettingsPatch({ terminalLineHeight: 1.25 });
+    expect(patch.terminalLineHeight).toBe(1.25);
+    expect(encodeClientSettings(decodeClientSettings(patch)).terminalLineHeight).toBe(1.25);
+  });
+
+  it.each([0.95, 2.05, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects invalid spacing %s",
+    (terminalLineHeight) => {
+      expect(() => decodeClientSettings({ terminalLineHeight })).toThrow();
+      expect(() => decodeClientSettingsPatch({ terminalLineHeight })).toThrow();
+    },
+  );
+});
+
 describe("ClientSettings notifications", () => {
   it("requires opt-in when existing settings omit notification preferences", () => {
     expect(decodeClientSettings({}).notificationMode).toBe("off");

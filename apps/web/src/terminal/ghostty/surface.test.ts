@@ -117,6 +117,7 @@ describe("GhosttyTerminalSurface visibility", () => {
 
     const canvas = new TerminalTestElement();
     const mount = new TerminalTestElement();
+    const textMetrics = { width: 8, actualBoundingBoxAscent: 9, actualBoundingBoxDescent: 3 };
     const context = {
       canvas,
       beginPath() {},
@@ -129,11 +130,7 @@ describe("GhosttyTerminalSurface visibility", () => {
       fillRect: (...args: number[]) => paint("fillRect", args),
       strokeRect: (...args: number[]) => paint("strokeRect", args),
       fillText: (...args: [string, number, number, number?]) => paint("fillText", args),
-      measureText: (text: string) => ({
-        width: text.length * 8,
-        actualBoundingBoxAscent: 9,
-        actualBoundingBoxDescent: 3,
-      }),
+      measureText: (text: string) => ({ ...textMetrics, width: text.length * textMetrics.width }),
     };
     vi.stubGlobal("document", {
       createElement: (tag: string) => (tag === "canvas" ? canvas : new TerminalTestElement()),
@@ -176,6 +173,7 @@ describe("GhosttyTerminalSurface visibility", () => {
     return {
       canvas,
       mount,
+      textMetrics,
       frames,
       paint,
       requestFrame,
@@ -258,6 +256,46 @@ describe("GhosttyTerminalSurface visibility", () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it("refits the grid and reports PTY rows when only line height changes", async () => {
+    const harness = createHarness();
+    const onResize = vi.fn();
+    const surface = await harness.create({ onResize });
+    expect(surface.heightForRows(2)).toBe(32);
+    vi.advanceTimersByTime(150);
+    expect(onResize).toHaveBeenLastCalledWith(20, 8);
+
+    await surface.setFont({ lineHeight: 1.5 });
+    expect(surface.heightForRows(2)).toBe(44);
+    vi.advanceTimersByTime(150);
+    expect(onResize).toHaveBeenLastCalledWith(20, 5);
+    expect(harness.renderedSnapshot.rows).toBe(5);
+  });
+
+  it("keeps the latest spacing through overlapping font loads and later font events", async () => {
+    const harness = createHarness();
+    const onResize = vi.fn();
+    const surface = await harness.create({ onResize });
+    let release!: () => void;
+    const oldLoad = new Promise<FontFace[]>((resolve) => {
+      release = () => resolve([]);
+    });
+    vi.spyOn(document.fonts, "load").mockImplementationOnce(() => oldLoad);
+    const older = surface.setFont({ lineHeight: 1.5 });
+    const newer = surface.setFont({ lineHeight: 2 });
+    await newer;
+    release();
+    await older;
+    expect(surface.heightForRows(2)).toBe(56);
+    vi.advanceTimersByTime(150);
+    expect(onResize).toHaveBeenLastCalledWith(20, 4);
+
+    harness.textMetrics.actualBoundingBoxAscent = 13;
+    document.fonts.dispatchEvent(new Event("loadingdone"));
+    expect(surface.heightForRows(2)).toBe(72);
+    vi.advanceTimersByTime(150);
+    expect(onResize).toHaveBeenLastCalledWith(20, 3);
   });
 
   it("preserves shell Ctrl+A and ordinary application navigation", async () => {
