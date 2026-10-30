@@ -1,3 +1,13 @@
+import { WORKSPACE_HOST_FOCUS_COMMANDS } from "@t3tools/shared/keybindings";
+import type { CommandHandlers } from "../shortcuts/dispatcher";
+import { dispatchMenuAction } from "../shortcuts/dispatcher";
+import {
+  beginWorkspaceResize,
+  armWorkspaceResizePrefix,
+  handleWorkspaceResizeKey,
+  startWorkspaceResize,
+  cancelWorkspaceResize,
+} from "../lib/workspaceResize";
 import { useAtomValue } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
 import {
@@ -9,7 +19,13 @@ import {
 } from "react";
 import { useLocation, useRouter, type AnyRouter } from "@tanstack/react-router";
 
-import { moveWorkspaceFocus, workspaceAreaProps } from "../lib/workspaceFocus";
+import {
+  moveWorkspaceFocus,
+  moveWorkspaceFocusDirection,
+  isWorkspaceFocusBlocked,
+  requestWorkspaceFocus,
+  workspaceAreaProps,
+} from "../lib/workspaceFocus";
 import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { isElectron } from "../env";
 import {
@@ -173,25 +189,60 @@ export function registerNavigationHistoryCommands(router: AnyRouter): () => void
 
 // Capture phase, so F6 also leaves widgets that swallow keys, such as the terminal.
 function registerWorkspaceFocusCommands(router: AnyRouter): () => void {
-  const move = (direction: 1 | -1) => (event: KeyboardEvent) => {
-    if (event.isComposing) return false;
-    // Inside a dialog the move is refused, but the key is still consumed.
-    event.preventDefault();
-    event.stopPropagation();
-    moveWorkspaceFocus(direction);
+  const actions = {
+    "workspace.focusNext": () => moveWorkspaceFocus(1),
+    "workspace.focusPrevious": () => moveWorkspaceFocus(-1),
+    "workspace.focusLeft": () => moveWorkspaceFocusDirection("left"),
+    "workspace.focusDown": () => moveWorkspaceFocusDirection("down"),
+    "workspace.focusUp": () => moveWorkspaceFocusDirection("up"),
+    "workspace.focusRight": () => moveWorkspaceFocusDirection("right"),
+    "workspace.focusComposer": () => requestWorkspaceFocus({ area: "composer" }),
+    "workspace.focusPanel": () => dispatchMenuAction("workspace.focusPanel"),
+    "workspace.focusTerminal": () => dispatchMenuAction("workspace.focusTerminal"),
+    "workspace.resize": () => beginWorkspaceResize(),
+    "workspace.resizePrefix": () => armWorkspaceResizePrefix(),
   };
+  const commands: CommandHandlers = {};
+  for (const command of WORKSPACE_HOST_FOCUS_COMMANDS) {
+    commands[command] = (event) => {
+      if (event.isComposing) return false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (
+        ["workspace.focusComposer", "workspace.focusPanel", "workspace.focusTerminal"].includes(
+          command,
+        ) &&
+        isWorkspaceFocusBlocked()
+      )
+        return;
+      actions[command]();
+    };
+  }
   const disposers = [
-    registerCommands(
-      { "workspace.focusNext": move(1), "workspace.focusPrevious": move(-1) },
-      {
-        capture: true,
-        when: (event) => !isKeybindingCaptureTarget(event),
-        context: () => readRoutePanelsOpen(router),
-      },
+    startWorkspaceResize(),
+    registerCommands(commands, {
+      capture: true,
+      when: (event) => !isKeybindingCaptureTarget(event),
+      onKeyDown: (event) => handleWorkspaceResizeKey(event),
+      context: () => readRoutePanelsOpen(router),
+    }),
+    router.subscribe("onBeforeNavigate", () => cancelWorkspaceResize()),
+    ...WORKSPACE_HOST_FOCUS_COMMANDS.filter(
+      (command) => command !== "workspace.focusPanel" && command !== "workspace.focusTerminal",
+    ).map((command) =>
+      registerMenuAction(command, (source) => {
+        if (command === "workspace.resize") beginWorkspaceResize(source?.previewTabId);
+        else if (command === "workspace.resizePrefix")
+          armWorkspaceResizePrefix(source?.previewTabId);
+        else if (command === "workspace.focusNext") moveWorkspaceFocus(1, "panel");
+        else if (command === "workspace.focusPrevious") moveWorkspaceFocus(-1, "panel");
+        else if (command === "workspace.focusLeft") moveWorkspaceFocusDirection("left", "panel");
+        else if (command === "workspace.focusDown") moveWorkspaceFocusDirection("down", "panel");
+        else if (command === "workspace.focusUp") moveWorkspaceFocusDirection("up", "panel");
+        else if (command === "workspace.focusRight") moveWorkspaceFocusDirection("right", "panel");
+        else actions[command]();
+      }),
     ),
-    // A focused desktop browser forwards the keys; its renderer focus is stale.
-    registerMenuAction("workspace.focusNext", () => moveWorkspaceFocus(1, "panel")),
-    registerMenuAction("workspace.focusPrevious", () => moveWorkspaceFocus(-1, "panel")),
   ];
   return () => {
     for (const dispose of disposers) dispose();

@@ -44,6 +44,35 @@ on macOS and Ctrl on Windows and Linux, including GNOME, KDE Plasma, Niri, and
 Hyprland. If a custom desktop shortcut takes the same keys, choose another binding
 in Settings.
 
+## Navigate and resize panes
+
+Directional focus and keyboard resize are unbound by default on web and desktop.
+In **Settings → Keybindings**, assign `ctrl+h`, `ctrl+j`, `ctrl+k`, and `ctrl+l` to
+**Workspace: Focus Left**, **Workspace: Focus Down**, **Workspace: Focus Up**, and
+**Workspace: Focus Right**. Focus moves to the nearest visible pane without wrapping.
+Inside a split terminal group, it moves between terminal cells first.
+
+For a prefix shortcut, assign `ctrl+b` to **Resize Panes Prefix (then R)**.
+Press `Ctrl+B`, release Control, then press `R` within 1.5 seconds. You can also
+bind **Resize Panes** to enter directly, or choose it from the command palette.
+The right panel must be inline and not maximized, or the terminal drawer must be visible.
+
+In resize mode, use `H` and `L` or Left and Right to move the right panel divider.
+Use `K` and `J` or Up and Down to move the terminal divider. Each press moves
+10 pixels; hold Shift for 50 pixels. `Tab` switches between available dividers.
+`Enter` saves both sizes, and `Escape` restores them. Switching threads, opening
+a dialog, or leaving the window cancels the changes.
+
+These opt-in bindings replace existing uses of the same keys. `Ctrl+J` overlaps
+the terminal toggle on Windows and Linux, and `Ctrl+B` overlaps the sidebar toggle
+there. Remove or rebind those defaults in Settings. A configured `Ctrl+L` focus
+command takes priority over terminal clear. Other applications or the browser
+may also reserve a shortcut.
+
+**Focus Message Input**, **Reveal and Focus Right Panel**, and **Reveal and Focus
+Terminal** are available in Settings and the command palette. The reveal commands
+open a closed panel and keep an open panel open.
+
 ## Copy pull request references
 
 With a PR open in the right panel or on the Pull requests page, use `mod+shift+c`

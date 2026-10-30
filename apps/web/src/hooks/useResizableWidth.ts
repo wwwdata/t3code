@@ -1,5 +1,8 @@
+import { createSizeEdit, type SizeEdit } from "../lib/resizeEdit";
+import { cancelWorkspaceResize } from "../lib/workspaceResize";
+import { useStableCallback } from "./useStableCallback";
 import * as Schema from "effect/Schema";
-import { type PointerEvent as ReactPointerEvent, useLayoutEffect, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useLayoutEffect, useRef, useState } from "react";
 
 import { getLocalStorageItem, setLocalStorageItem } from "./useLocalStorage";
 import { useResizeDrag } from "./useResizeDrag";
@@ -30,6 +33,9 @@ export interface ResizableWidthHandlers {
 export function useResizableWidth(options: UseResizableWidthOptions): {
   readonly width: number;
   readonly setWidth: (width: number) => void;
+  readonly beginKeyboardResize: (host: HTMLElement) => SizeEdit;
+  readonly cancelPointerResize: () => void;
+  readonly readWidth: () => number;
   readonly handlers: ResizableWidthHandlers;
 } {
   const { storageKey, defaultWidth, minWidth, maxWidth, edge } = options;
@@ -54,7 +60,14 @@ export function useResizableWidth(options: UseResizableWidthOptions): {
     setWidthState({ storageKey, width: readWidth() });
   }
 
+  const keyboardWidthRef = useRef<number | null>(null);
+  const keyboardHostRef = useRef<HTMLElement | null>(null);
   const clampedWidth = clamp(widthState.width);
+  const readCommittedWidth = useStableCallback(() => clamp(widthState.width));
+  const readCurrentWidth = useStableCallback(() =>
+    clamp(keyboardWidthRef.current ?? widthState.width),
+  );
+  const currentClamp = useStableCallback(clamp);
 
   const commitWidth = (nextStorageKey: string, nextWidth: number) => {
     // Resizing remains usable for this session when browser storage is unavailable.
@@ -73,7 +86,7 @@ export function useResizableWidth(options: UseResizableWidthOptions): {
     // The drag commits to the key and width it started from, even if the panel
     // switches keys before the pointer is released.
     const startStorageKey = storageKey;
-    const startWidth = clampedWidth;
+    const startWidth = clamp(widthState.width);
     return {
       width: startWidth,
       edge,
@@ -92,18 +105,53 @@ export function useResizableWidth(options: UseResizableWidthOptions): {
     };
   });
 
+  const beginKeyboardResize = useStableCallback((host: HTMLElement) => {
+    drag.cancel();
+    keyboardHostRef.current = host;
+    host.style.setProperty("transition-property", "none");
+    return createSizeEdit({
+      size: clampedWidth,
+      direction: edge === "left" ? -1 : 1,
+      clamp: currentClamp,
+      preview: (value) => {
+        keyboardWidthRef.current = value;
+        host.style.setProperty(RESIZABLE_WIDTH_PROPERTY, `${value ?? readCommittedWidth()}px`);
+        if (value === null) {
+          host.style.removeProperty("transition-property");
+          keyboardHostRef.current = null;
+        }
+      },
+      persist: (value) => commitWidth(storageKey, value),
+    });
+  });
+
   // Bounds can change mid-drag (sidebar opens, window narrows), and the render
   // that carries them rewrites the committed width, so re-apply the live pointer position.
   const { refresh } = drag;
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reapplies the live drag pointer position to the DOM before paint when the bounds change
-  useLayoutEffect(() => refresh({ min: minWidth, max: maxWidth }), [refresh, minWidth, maxWidth]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reapplies the temporary resize width to the DOM before paint when bounds or rendered width change
+  useLayoutEffect(() => {
+    refresh({ min: minWidth, max: maxWidth });
+    if (keyboardWidthRef.current !== null) {
+      keyboardWidthRef.current = currentClamp(keyboardWidthRef.current);
+      keyboardHostRef.current?.style.setProperty(
+        RESIZABLE_WIDTH_PROPERTY,
+        `${keyboardWidthRef.current}px`,
+      );
+    }
+  }, [refresh, minWidth, maxWidth, currentClamp]);
 
   return {
     width: clampedWidth,
+    beginKeyboardResize,
+    cancelPointerResize: drag.cancel,
+    readWidth: readCurrentWidth,
     setWidth: (value) => commitWidth(storageKey, clamp(value)),
     handlers: {
       ref: drag.ref,
-      onPointerDown: drag.onPointerDown,
+      onPointerDown: (event) => {
+        cancelWorkspaceResize();
+        drag.onPointerDown(event);
+      },
       onPointerMove: drag.onPointerMove,
       onPointerUp: drag.onPointerUp,
       onPointerCancel: drag.onPointerCancel,

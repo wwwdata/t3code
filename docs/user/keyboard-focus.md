@@ -24,6 +24,13 @@ In a browser, plain `F6` may move to the browser's own toolbar. Use `mod+F6` and
 Workspace Area** and **Focus Previous Workspace Area** are also in the command palette and
 can be remapped in Settings > Keybindings.
 
+You can also bind directional focus commands to move to the nearest visible area
+without wrapping. Split terminals navigate between their cells before leaving
+the group. **Focus Message Input**, **Reveal and Focus Right Panel**, and
+**Reveal and Focus Terminal** provide direct destinations in the command palette.
+See [Navigate and resize panes](./keybindings.md#navigate-and-resize-panes) for an
+opt-in `Ctrl+H/J/K/L` setup and keyboard resize controls.
+
 ## Browse threads
 
 Tab enters the sidebar once. Up and Down move between threads without opening them; Enter

@@ -110,13 +110,16 @@ export function registerCommands(
   return pushScope(scopes, { commands, options });
 }
 
-type MenuActionHandler = () => void;
+type MenuActionHandler = (source?: { readonly previewTabId: string }) => void;
 const menuActionHandlers = new Map<string, MenuActionHandler[]>();
 let menuActionInstalled = false;
 
-export function dispatchMenuAction(action: string): void {
+export function dispatchMenuAction(
+  action: string,
+  source?: { readonly previewTabId: string },
+): void {
   const handlers = menuActionHandlers.get(action);
-  handlers?.at(-1)?.();
+  handlers?.at(-1)?.(source);
 }
 
 function ensureMenuActionListener() {

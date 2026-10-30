@@ -1,3 +1,7 @@
+import { WORKSPACE_HOST_FOCUS_COMMANDS } from "@t3tools/shared/keybindings";
+import { createSizeEdit } from "../lib/resizeEdit";
+import { registerWorkspaceResizeTarget, cancelWorkspaceResize } from "../lib/workspaceResize";
+import { useStableCallback } from "../hooks/useStableCallback";
 import { workspaceAreaProps } from "../lib/workspaceFocus";
 import { useAtomMount, useAtomValue } from "@effect/atom-react";
 import {
@@ -61,6 +65,7 @@ import { useOpenInPreferredEditor } from "../editorPreferences";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { isTerminalUrl } from "../terminal-links";
 import {
+  resolveShortcutCommand,
   isDiffToggleShortcut,
   isTerminalClearShortcut,
   isTerminalNewShortcut,
@@ -961,6 +966,12 @@ function TerminalSessionViewport({
       function handleBeforeKey(event: KeyboardEvent): boolean {
         const currentKeybindings = readKeybindings();
         const options = { context: { terminalFocus: true, terminalOpen: true } };
+        const command = resolveShortcutCommand(event, currentKeybindings, options);
+        if (
+          event.defaultPrevented ||
+          WORKSPACE_HOST_FOCUS_COMMANDS.some((candidate) => candidate === command)
+        )
+          return false;
         if (preventTerminalCloseShortcut(event, currentKeybindings)) {
           return false;
         }
@@ -1161,6 +1172,7 @@ function TerminalSessionViewport({
     const unregister = registerTerminalFocusTarget({
       threadRef,
       terminalId,
+      mount,
       focus,
     });
     return () => {
@@ -1283,6 +1295,7 @@ function TerminalSplitPanes({
 }) {
   return (
     <div
+      data-terminal-grid=""
       className="grid h-full w-full min-w-0 gap-0 overflow-hidden"
       style={
         splitDirection === "vertical"
@@ -1304,6 +1317,9 @@ function TerminalSplitPanes({
                 ? "border-t first:border-t-0"
                 : "border-l first:border-l-0"
             } ${terminalId === activeTerminalId ? "border-border" : "border-border/70"}`}
+            onFocusCapture={() => {
+              if (terminalId !== activeTerminalId) onActiveTerminalChange(terminalId);
+            }}
             onPointerDown={() => {
               if (terminalId !== activeTerminalId) {
                 onActiveTerminalChange(terminalId);
@@ -1474,7 +1490,6 @@ export default function ThreadTerminalDrawer({
   const drawerRef = useRef<HTMLElement | null>(null);
   const [drawerLayout, setDrawerLayout] = useState(() => readDrawerLayout(null));
   const maxDrawerHeight = resolveTerminalDrawerMaxHeight({ ...drawerLayout, composerHeight });
-  const drawerHeight = clampDrawerHeight(height, maxDrawerHeight);
   // A drag only writes the drawer's style; the store hears the height once, at
   // pointerup. The custom property outranks the rendered height while it is set.
   const resizeStateRef = useRef<{
@@ -1484,6 +1499,65 @@ export default function ThreadTerminalDrawer({
     height: number;
     drawer: HTMLElement | null;
   } | null>(null);
+
+  const keyboardHeightRef = useRef<number | null>(null);
+  const drawerHeight = clampDrawerHeight(height, maxDrawerHeight);
+  const readResizeHeight = useStableCallback(() =>
+    clampDrawerHeight(keyboardHeightRef.current ?? height, maxDrawerHeight),
+  );
+  const clampResizeHeight = useStableCallback((value: number) =>
+    clampDrawerHeight(value, maxDrawerHeight),
+  );
+  const cancelPointerResize = useStableCallback(() => {
+    const active = resizeStateRef.current;
+    if (!active) return;
+    resizeStateRef.current = null;
+    const divider = drawerRef.current?.querySelector<HTMLElement>(
+      '[data-workspace-resize-divider="bottom"]',
+    );
+    if (divider?.hasPointerCapture(active.pointerId))
+      divider.releasePointerCapture(active.pointerId);
+    active.drawer?.style.removeProperty(DRAG_HEIGHT_PROPERTY);
+  });
+  const beginKeyboardResize = useStableCallback(() => {
+    cancelPointerResize();
+    const drawer = drawerRef.current;
+    return createSizeEdit({
+      size: drawerHeight,
+      direction: -1,
+      clamp: clampResizeHeight,
+      preview: (value) => {
+        keyboardHeightRef.current = value;
+        if (value === null) drawer?.style.removeProperty(DRAG_HEIGHT_PROPERTY);
+        else drawer?.style.setProperty(DRAG_HEIGHT_PROPERTY, `${value}px`);
+      },
+      persist: onHeightChange,
+    });
+  });
+  /* oxlint-disable react/exhaustive-effect-dependencies -- changing the size owner must cancel its captured resize edit */
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers the mounted drawer divider for keyboard resizing while the drawer is visible
+  useLayoutEffect(() => {
+    const divider = drawerRef.current?.querySelector<HTMLElement>(
+      '[data-workspace-resize-divider="bottom"]',
+    );
+    if (isPanel || !visible || !divider) return;
+    return registerWorkspaceResizeTarget({
+      id: "bottom",
+      divider,
+      size: readResizeHeight,
+      begin: beginKeyboardResize,
+      prepare: cancelPointerResize,
+    });
+  }, [
+    isPanel,
+    visible,
+    threadRef.environmentId,
+    threadRef.threadId,
+    readResizeHeight,
+    beginKeyboardResize,
+    cancelPointerResize,
+  ]);
+  /* oxlint-enable react/exhaustive-effect-dependencies */
 
   const normalizedTerminalIds = (() => {
     const normalizedIds: string[] = [];
@@ -1653,8 +1727,16 @@ export default function ThreadTerminalDrawer({
     });
   };
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reclamps the temporary DOM height when layout bounds change during keyboard resize
+  useLayoutEffect(() => {
+    if (keyboardHeightRef.current === null) return;
+    keyboardHeightRef.current = clampDrawerHeight(keyboardHeightRef.current, maxDrawerHeight);
+    drawerRef.current?.style.setProperty(DRAG_HEIGHT_PROPERTY, `${keyboardHeightRef.current}px`);
+  }, [maxDrawerHeight]);
+
   const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
+    cancelWorkspaceResize();
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     resizeStateRef.current = {
@@ -1760,7 +1842,8 @@ export default function ThreadTerminalDrawer({
       >
         {!isPanel ? (
           <div
-            className="absolute inset-x-0 top-0 z-20 h-1.5 cursor-row-resize"
+            data-workspace-resize-divider="bottom"
+            className="absolute inset-x-0 top-0 z-20 h-1.5 cursor-row-resize data-[workspace-resizing]:bg-primary"
             onPointerDown={handleResizePointerDown}
             onPointerMove={handleResizePointerMove}
             onPointerUp={handleResizePointerEnd}
@@ -1797,7 +1880,8 @@ export default function ThreadTerminalDrawer({
     >
       {!isPanel ? (
         <div
-          className="absolute inset-x-0 top-0 z-20 h-1.5 cursor-row-resize"
+          data-workspace-resize-divider="bottom"
+          className="absolute inset-x-0 top-0 z-20 h-1.5 cursor-row-resize data-[workspace-resizing]:bg-primary"
           onPointerDown={handleResizePointerDown}
           onPointerMove={handleResizePointerMove}
           onPointerUp={handleResizePointerEnd}

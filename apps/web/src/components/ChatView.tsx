@@ -1,3 +1,4 @@
+import { registerMenuAction } from "../shortcuts/dispatcher";
 import { workspaceAreaProps } from "../lib/workspaceFocus";
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import { resolveNewThreadModelSelection } from "@t3tools/shared/usageLimits";
@@ -1867,6 +1868,7 @@ export default function ChatView(props: ChatViewProps) {
     splitPanelTerminalStable,
     splitPanelTerminalVerticalStable,
     toggleTerminalVisibilityStable,
+    focusDrawerTerminalStable,
     shortcuts: terminalShortcuts,
   } = useChatTerminalActions({
     environmentId,
@@ -2322,6 +2324,7 @@ export default function ChatView(props: ChatViewProps) {
     openFileSurfaceStable,
     toggleRightPanelMaximizedStable,
     toggleRightPanelStable,
+    focusRightPanelStable,
     toggleThreadPanelStable,
     shortcuts: rightPanelShortcuts,
   } = useRightPanelActions({
@@ -2701,14 +2704,23 @@ export default function ChatView(props: ChatViewProps) {
     },
   });
 
-  // A focused desktop browser page forwards these chords as menu actions.
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to desktop bridge menu actions that toggle the right panel
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers chat layout actions for palette and desktop guest shortcuts
   useEffect(() => {
-    return window.desktopBridge?.onMenuAction((action) => {
-      if (action === "rightPanel.toggle") toggleRightPanelStable();
-      else if (action === "rightPanel.toggleMaximized") toggleRightPanelMaximizedStable();
-    });
-  }, [toggleRightPanelStable, toggleRightPanelMaximizedStable]);
+    const stop = [
+      registerMenuAction("rightPanel.toggle", toggleRightPanelStable),
+      registerMenuAction("rightPanel.toggleMaximized", toggleRightPanelMaximizedStable),
+      registerMenuAction("workspace.focusPanel", focusRightPanelStable),
+      registerMenuAction("workspace.focusTerminal", focusDrawerTerminalStable),
+    ];
+    return () => {
+      for (const dispose of stop) dispose();
+    };
+  }, [
+    toggleRightPanelStable,
+    toggleRightPanelMaximizedStable,
+    focusRightPanelStable,
+    focusDrawerTerminalStable,
+  ]);
 
   usePasteToFocusComposer(activeThreadId, composerRef);
   const { onConfirmRevertStable, onForkFromRunStable, onRevertTimelineTurnStable } =

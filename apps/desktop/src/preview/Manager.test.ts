@@ -625,6 +625,24 @@ describe("PreviewManager", () => {
         expect(preventDefault).toHaveBeenCalledOnce();
         expect(send).toHaveBeenCalledExactlyOnceWith("desktop:menu-action", "view.reopenClosed");
 
+        const focusOrder: string[] = [];
+        Object.assign(host, { focus: () => focusOrder.push("host") });
+        send.mockImplementation(() => {
+          focusOrder.push("command");
+        });
+        for (const command of [
+          "workspace.focusLeft",
+          "workspace.resizePrefix",
+          "workspace.resize",
+        ] as const) {
+          yield* manager.setForwardedShortcuts([{ command, shortcut }]);
+          beforeInput({ preventDefault } as never, { ...key, key: "T", shift: true } as never);
+          expect(send).toHaveBeenLastCalledWith("desktop:menu-action", command, {
+            previewTabId: "tab_older",
+          });
+        }
+        expect(focusOrder).toEqual(["host", "command", "host", "command", "host", "command"]);
+        send.mockClear();
         Object.assign(newer.webContents, { focusedFrame: null });
         const agentInput = newer.listeners.get("before-input-event")!;
         const agentPreventDefault = vi.fn();
@@ -640,7 +658,7 @@ describe("PreviewManager", () => {
           { ...key, key: "T", shift: true } as never,
         );
         expect(agentPreventDefault).not.toHaveBeenCalled();
-        expect(send).toHaveBeenCalledOnce();
+        expect(send).not.toHaveBeenCalled();
       }),
     ),
   );

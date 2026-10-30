@@ -1,3 +1,4 @@
+import { isWorkspaceFocusBlocked, requestWorkspaceFocus } from "../../lib/workspaceFocus";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -164,6 +165,12 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     }
     setTerminalOpen(nextOpen);
   };
+  const focusDrawerTerminalStable = useStableCallback(() => {
+    if (isWorkspaceFocusBlocked()) return;
+    if (!terminalUiState.terminalOpen) toggleTerminalVisibility();
+    else if (activeThreadRef) focusActiveDrawerTerminal(activeThreadRef);
+    requestWorkspaceFocus({ area: "terminal" });
+  });
   const toggleTerminalVisibilityStable = useStableCallback(toggleTerminalVisibility);
   const splitTerminal = (direction: "horizontal" | "vertical" = "horizontal") => {
     if (!activeThreadRef || hasReachedSplitLimit) return;
@@ -455,5 +462,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     splitPanelTerminalVerticalStable,
     splitTerminalStable,
     toggleTerminalVisibilityStable,
+    focusDrawerTerminalStable,
   };
 }

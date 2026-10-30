@@ -1,3 +1,4 @@
+import { registerWorkspaceResizeTarget } from "../../lib/workspaceResize";
 import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import {
   type PreviewPanelInlineSize,
@@ -52,7 +53,31 @@ function PreviewPanelShellFrame(
   const maximized = props.maximized ?? false;
   const hostRef = useRef<HTMLDivElement | null>(null);
   const returnedFocus = useRef(false);
-  const { width, handlers, observeRow } = props.inlineSize;
+  const { width, handlers, observeRow, readWidth, beginKeyboardResize, cancelPointerResize } =
+    props.inlineSize;
+  const resizeAvailable = Boolean(props.workspaceArea && isInline && open && !maximized);
+  /* oxlint-disable react/exhaustive-effect-dependencies -- changing the size owner must cancel its captured resize edit */
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers the mounted divider with the keyboard resize controller while usable
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    const divider = host?.querySelector<HTMLElement>('[data-workspace-resize-divider="right"]');
+    if (!resizeAvailable || !divider || !host) return;
+    return registerWorkspaceResizeTarget({
+      id: "right",
+      divider,
+      size: readWidth,
+      begin: () => beginKeyboardResize(host),
+      prepare: cancelPointerResize,
+    });
+  }, [
+    resizeAvailable,
+    readWidth,
+    beginKeyboardResize,
+    cancelPointerResize,
+    props.widthStorageKey,
+    props.workspaceFocusKey,
+  ]);
+  /* oxlint-enable react/exhaustive-effect-dependencies */
   // Width animates only for an open or close. Any other width change disables
   // the transition in the same commit that changes the width, so the browser
   // never starts one; the next open or close re-enables it in its own commit,

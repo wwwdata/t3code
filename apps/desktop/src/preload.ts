@@ -209,9 +209,21 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   probeRemoteEditors: () => ipcRenderer.invoke(IpcChannels.PROBE_REMOTE_EDITORS_CHANNEL, undefined),
   pasteAsText: () => ipcRenderer.invoke(IpcChannels.PASTE_AS_TEXT_CHANNEL, undefined),
   onMenuAction: (listener) => {
-    const wrappedListener = (_event: Electron.IpcRendererEvent, action: unknown) => {
+    const wrappedListener = (
+      _event: Electron.IpcRendererEvent,
+      action: unknown,
+      source: unknown,
+    ) => {
       if (typeof action !== "string") return;
-      listener(action);
+      listener(
+        action,
+        typeof source === "object" &&
+          source !== null &&
+          "previewTabId" in source &&
+          typeof source.previewTabId === "string"
+          ? { previewTabId: source.previewTabId }
+          : undefined,
+      );
     };
 
     ipcRenderer.on(IpcChannels.MENU_ACTION_CHANNEL, wrappedListener);

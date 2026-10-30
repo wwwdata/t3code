@@ -1,4 +1,5 @@
 import {
+  type KeybindingCommand,
   type KeybindingRule,
   type KeybindingShortcut,
   type KeybindingWhenNode,
@@ -496,3 +497,24 @@ export function mergeWithDefaultKeybindings(
 
   return merged.slice(-MAX_KEYBINDINGS_COUNT);
 }
+
+export const WORKSPACE_HOST_FOCUS_COMMANDS = [
+  "workspace.focusNext",
+  "workspace.focusPrevious",
+  "workspace.focusLeft",
+  "workspace.focusDown",
+  "workspace.focusUp",
+  "workspace.focusRight",
+  "workspace.focusComposer",
+  "workspace.focusPanel",
+  "workspace.focusTerminal",
+  "workspace.resize",
+  "workspace.resizePrefix",
+] as const satisfies readonly KeybindingCommand[];
+
+export const PREVIEW_FORWARDED_LAYOUT_COMMANDS = [
+  ...WORKSPACE_HOST_FOCUS_COMMANDS,
+  "sidebar.toggle",
+  "rightPanel.toggle",
+  "rightPanel.toggleMaximized",
+] as const satisfies readonly KeybindingCommand[];

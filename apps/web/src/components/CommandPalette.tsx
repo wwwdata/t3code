@@ -1,3 +1,5 @@
+import { beginWorkspaceResize, armWorkspaceResizePrefix } from "../lib/workspaceResize";
+import { dispatchMenuAction } from "../shortcuts/dispatcher";
 import { threadPullRequestLinkMode } from "@t3tools/client-runtime/thread-pull-request-compatibility";
 import { visibleThreadPullRequests } from "@t3tools/shared/threadPullRequests";
 
@@ -92,6 +94,8 @@ import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl"
 import { copyThreadReference } from "../lib/copyThreadReference";
 import {
   queueWorkspaceFocusFromPalette,
+  queueWorkspaceActionFromPalette,
+  requestWorkspaceFocus,
   restoreWorkspaceFocusFromPalette,
 } from "../lib/workspaceFocus";
 import {
@@ -333,8 +337,8 @@ function CommandPaletteDialog(props: {
       data-palette-mode={props.mode}
       data-testid="command-palette"
       finalFocus={() => {
-        if (restoreWorkspaceFocusFromPalette()) return false;
         const returnFocus = getCommandPaletteReturnFocus();
+        if (restoreWorkspaceFocusFromPalette(returnFocus)) return false;
         if (returnFocus === false) return false;
         const composer = composerHandleRef?.current;
         // Behind the Settings modal the composer is inert and cannot take focus.
@@ -1516,6 +1520,67 @@ function OpenCommandPaletteDialog(props: {
       shortcutCommand: direction === 1 ? "workspace.focusNext" : "workspace.focusPrevious",
       run: async () => {
         queueWorkspaceFocusFromPalette(direction);
+      },
+    });
+  }
+
+  for (const direction of ["left", "down", "up", "right"] as const) {
+    actionItems.push({
+      kind: "action",
+      value: `action:workspace-focus:${direction}`,
+      title: `Focus Workspace ${direction[0]!.toUpperCase()}${direction.slice(1)}`,
+      searchTerms: ["pane", "navigation", "focus", direction],
+      icon: <MonitorIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: `workspace.focus${direction[0]!.toUpperCase()}${direction.slice(1)}` as
+        | "workspace.focusLeft"
+        | "workspace.focusDown"
+        | "workspace.focusUp"
+        | "workspace.focusRight",
+      run: async () => {
+        queueWorkspaceFocusFromPalette(direction);
+      },
+    });
+  }
+  for (const [command, title, action] of [
+    [
+      "workspace.focusComposer",
+      "Focus Message Input",
+      () => requestWorkspaceFocus({ area: "composer" }),
+    ],
+    [
+      "workspace.focusPanel",
+      "Reveal and Focus Right Panel",
+      () => dispatchMenuAction("workspace.focusPanel"),
+    ],
+    [
+      "workspace.focusTerminal",
+      "Reveal and Focus Terminal",
+      () => dispatchMenuAction("workspace.focusTerminal"),
+    ],
+    [
+      "workspace.resize",
+      "Resize Panes",
+      () => {
+        beginWorkspaceResize();
+      },
+    ],
+    [
+      "workspace.resizePrefix",
+      "Resize Panes Prefix (then R)",
+      () => {
+        armWorkspaceResizePrefix();
+      },
+    ],
+  ] as const) {
+    actionItems.push({
+      kind: "action",
+      value: `action:${command}`,
+      title,
+      searchTerms: ["pane", "workspace", "keyboard", title],
+      icon: <MonitorIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: command,
+      run: async () => {
+        queueWorkspaceActionFromPalette(action);
       },
     });
   }

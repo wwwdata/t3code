@@ -1,3 +1,6 @@
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { registerTerminalFocusTarget } from "./terminalFocus";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { createWorkspaceFocusController } from "./workspaceFocus";
 
@@ -32,6 +35,112 @@ function setup() {
 }
 
 describe("workspace area focus", () => {
+  it("traverses terminal cells before areas and leaves from the focused cell's rectangle", () => {
+    using fixture = setup();
+    using registrations = new DisposableStack();
+    const source = fixture.area("terminal", 5);
+    source.element.style.cssText = "position:fixed;left:0;top:0;width:300px;height:500px";
+    source.button.remove();
+    const group = document.createElement("div");
+    group.dataset.terminalGrid = "";
+    group.style.cssText = "height:100%;display:grid;grid-template-rows:1fr 1fr";
+    source.element.append(group);
+    let selected = "";
+    const cells = ["top", "bottom"].map((terminalId) => {
+      const mount = document.createElement("div");
+      mount.tabIndex = -1;
+      group.append(mount);
+      registrations.defer(
+        registerTerminalFocusTarget({
+          threadRef: scopeThreadRef(EnvironmentId.make("spatial"), ThreadId.make("thread")),
+          terminalId,
+          mount,
+          focus: () => {
+            selected = terminalId;
+            mount.focus();
+            return true;
+          },
+        }),
+      );
+      return mount;
+    });
+    const upper = fixture.area("upper", 6);
+    const lower = fixture.area("lower", 7);
+    upper.element.style.cssText = "position:fixed;left:300px;top:0;width:200px;height:250px";
+    lower.element.style.cssText = "position:fixed;left:300px;top:250px;width:200px;height:250px";
+    cells[1]!.focus();
+    expect(fixture.controller.move("up")).toBe(true);
+    expect(document.activeElement).toBe(cells[0]);
+    expect(selected).toBe("top");
+    expect(fixture.controller.move("down")).toBe(true);
+    expect(document.activeElement).toBe(cells[1]);
+    expect(selected).toBe("bottom");
+    expect(fixture.controller.move("right")).toBe(true);
+    expect(document.activeElement).toBe(lower.button);
+  });
+
+  it("uses the visible composer card rather than its overlay when moving up from the drawer", () => {
+    using fixture = setup();
+    const conversation = fixture.area("conversation", 1);
+    const composer = fixture.area("composer", 2);
+    const terminal = fixture.area("terminal", 5);
+    for (const area of [conversation, composer])
+      area.element.style.cssText = "position:fixed;left:0;top:0;width:500px;height:500px";
+    terminal.element.style.cssText = "position:fixed;left:0;top:500px;width:500px;height:100px";
+    const card = document.createElement("div");
+    card.dataset.chatComposerStack = "true";
+    card.style.cssText = "position:fixed;left:50px;top:350px;width:400px;height:100px";
+    card.append(composer.button);
+    composer.element.append(card);
+    terminal.button.focus();
+    expect(fixture.controller.move("up")).toBe(true);
+    expect(document.activeElement).toBe(composer.button);
+    expect(fixture.controller.move("up")).toBe(true);
+    expect(document.activeElement).toBe(conversation.element);
+  });
+
+  it("chooses physical neighbors without wrapping or entering hidden areas", () => {
+    using fixture = setup();
+    const sidebar = fixture.area("sidebar", 0);
+    const composer = fixture.area("composer", 2);
+    const details = fixture.area("details", 3);
+    const panel = fixture.area("panel", 4);
+    const terminal = fixture.area("terminal", 5);
+    for (const [area, box] of [
+      [sidebar, "left:0;top:0;width:100px;height:500px"],
+      [composer, "left:100px;top:300px;width:300px;height:100px"],
+      [details, "left:300px;top:300px;width:100px;height:100px"],
+      [panel, "left:400px;top:0;width:200px;height:500px"],
+      [terminal, "left:100px;top:400px;width:300px;height:100px"],
+    ] as const)
+      area.element.style.cssText = `position:fixed;${box}`;
+    composer.button.focus();
+    expect(fixture.controller.move("right")).toBe(true);
+    expect(document.activeElement).toBe(panel.button);
+    composer.button.focus();
+    expect(fixture.controller.move("down")).toBe(true);
+    expect(document.activeElement).toBe(terminal.button);
+    expect(fixture.controller.move("down")).toBe(false);
+    expect(fixture.controller.move("right")).toBe(true);
+    expect(document.activeElement).toBe(panel.button);
+    panel.element.hidden = true;
+    composer.button.focus();
+    expect(fixture.controller.move("right")).toBe(false);
+    expect(document.activeElement).toBe(composer.button);
+    expect(fixture.controller.move(1)).toBe(true);
+    expect(document.activeElement).toBe(details.button);
+    expect(fixture.controller.move(-1)).toBe(true);
+    expect(document.activeElement).toBe(composer.button);
+    details.button.focus();
+    expect(fixture.controller.move("left")).toBe(true);
+    expect(document.activeElement).toBe(composer.button);
+    expect(fixture.controller.move("left")).toBe(true);
+    expect(document.activeElement).toBe(sidebar.button);
+    const modal = fixture.append('<div role="dialog" aria-modal="true">Confirm</div>');
+    expect(fixture.controller.move("right")).toBe(false);
+    modal.remove();
+  });
+
   it("cycles in workspace order in both directions, independent of DOM order", () => {
     using fixture = setup();
     const panel = fixture.area("panel", 3);

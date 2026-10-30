@@ -1,5 +1,7 @@
 import type { AnyRouter } from "@tanstack/react-router";
 import { dismissContextMenu } from "../contextMenuFallback";
+import { getFocusedTerminalRectangle, moveTerminalFocus } from "./terminalFocus";
+import { directionalNeighbor, type WorkspaceDirection } from "./workspaceGeometry";
 import { useRightPanelStore } from "../rightPanelStore";
 
 const AREA_SELECTOR = "[data-workspace-area]";
@@ -32,7 +34,7 @@ function workspaceArea(element: Element): HTMLElement | null {
   return root instanceof ShadowRoot ? workspaceArea(root.host) : null;
 }
 
-function isWorkspaceElementVisible(element: HTMLElement): boolean {
+export function isWorkspaceElementVisible(element: HTMLElement): boolean {
   if (
     !element.isConnected ||
     element.closest(
@@ -50,6 +52,17 @@ function isWorkspaceElementVisible(element: HTMLElement): boolean {
   )
     return false;
   return Array.from(element.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
+}
+
+export function isWorkspaceFocusBlocked(doc: Document = document): boolean {
+  return Array.from(
+    doc.querySelectorAll<HTMLElement>(`${FOCUS_BOUNDARY_SELECTOR}, [data-app-modal]`),
+  ).some(
+    (boundary) =>
+      isWorkspaceElementVisible(boundary) &&
+      (boundary.matches('[aria-modal="true"], [data-app-modal]') ||
+        boundary.contains(doc.activeElement)),
+  );
 }
 
 function scrollingAncestors(target: HTMLElement) {
@@ -194,7 +207,11 @@ export function createWorkspaceFocusController(doc: Document) {
     }
     return focusArea(area, restore);
   };
-  const move = (direction: 1 | -1, fromArea?: string, closingPalette = false) => {
+  const move = (
+    direction: 1 | -1 | WorkspaceDirection,
+    fromArea?: string,
+    closingPalette = false,
+  ) => {
     // HTML context menus close on blur, unlike modal dialogs and Base UI popups.
     dismissContextMenu(false);
     // A palette closes before running its command. Other popups keep their focus boundary.
@@ -229,6 +246,39 @@ export function createWorkspaceFocusController(doc: Document) {
     const activeArea = doc.activeElement?.closest<HTMLElement>(AREA_SELECTOR);
     const currentId = fromArea ?? activeArea?.dataset.workspaceArea ?? lastArea;
     const current = areas.findIndex((area) => area.dataset.workspaceArea === currentId);
+    if (typeof direction === "string") {
+      const source = areas[current];
+      if (!source) return false;
+      const terminalRectangle = fromArea ? undefined : getFocusedTerminalRectangle();
+      if (!fromArea && moveTerminalFocus(direction)) return true;
+      const composer = areas.find((area) => area.dataset.workspaceArea === "composer");
+      const composerContent = composer?.querySelector<HTMLElement>("[data-chat-composer-stack]");
+      const composerRectangle =
+        composerContent && isWorkspaceElementVisible(composerContent)
+          ? composerContent.getBoundingClientRect()
+          : composer?.getBoundingClientRect();
+      const rectangle = (area: HTMLElement) => {
+        const box = area.getBoundingClientRect();
+        if (area === composer && composerRectangle) return composerRectangle;
+        if (
+          area.dataset.workspaceArea === "conversation" &&
+          composerRectangle &&
+          composerRectangle.top > box.top &&
+          composerRectangle.top < box.bottom &&
+          composerRectangle.left < box.right &&
+          composerRectangle.right > box.left
+        )
+          return new DOMRect(box.left, box.top, box.width, composerRectangle.top - box.top);
+        return box;
+      };
+      const neighbor = directionalNeighbor(
+        terminalRectangle ?? rectangle(source),
+        areas.filter((area) => area !== source && area.dataset.workspaceArea !== "details"),
+        direction,
+        rectangle,
+      );
+      return neighbor ? focusArea(neighbor) : false;
+    }
     const index =
       current === -1
         ? direction === 1
@@ -305,7 +355,7 @@ export function createWorkspaceFocusController(doc: Document) {
   doc.addEventListener("keydown", onUserInput, true);
 
   return {
-    move: (direction: 1 | -1, fromArea?: string, closingPalette = false) => {
+    move: (direction: 1 | -1 | WorkspaceDirection, fromArea?: string, closingPalette = false) => {
       cancelRequest();
       return move(direction, fromArea, closingPalette);
     },
@@ -359,6 +409,13 @@ export function moveWorkspaceFocus(direction: 1 | -1, fromArea?: string): boolea
   return controller?.move(direction, fromArea) ?? false;
 }
 
+export function moveWorkspaceFocusDirection(
+  direction: WorkspaceDirection,
+  fromArea?: string,
+): boolean {
+  return controller?.move(direction, fromArea) ?? false;
+}
+
 /** Explicit user actions request focus after React has committed the destination. */
 export function requestWorkspaceFocus(target: WorkspaceFocusTarget) {
   focusRequestVersion++;
@@ -371,13 +428,27 @@ export function requestWorkspaceContentFocus() {
   requestWorkspaceFocus({ area: "content" });
 }
 
-let pendingPaletteDirection: 1 | -1 | undefined;
-export function queueWorkspaceFocusFromPalette(direction: 1 | -1) {
+let pendingPaletteDirection: 1 | -1 | WorkspaceDirection | undefined;
+let pendingPaletteAction: (() => void) | undefined;
+export function queueWorkspaceActionFromPalette(action: () => void) {
+  pendingPaletteAction = action;
+}
+export function queueWorkspaceFocusFromPalette(direction: 1 | -1 | WorkspaceDirection) {
   pendingPaletteDirection = direction;
 }
 
 /** Runs at the palette's normal focus restoration milestone, after its focus trap closes. */
-export function restoreWorkspaceFocusFromPalette(): boolean {
+export function restoreWorkspaceFocusFromPalette(returnFocus?: HTMLElement | boolean): boolean {
+  if (pendingPaletteAction) {
+    const action = pendingPaletteAction;
+    pendingPaletteAction = undefined;
+    window.requestAnimationFrame(() => {
+      if (returnFocus instanceof HTMLElement && isWorkspaceElementVisible(returnFocus))
+        returnFocus.focus({ preventScroll: true });
+      action();
+    });
+    return true;
+  }
   if (pendingPaletteDirection === undefined) return false;
   const direction = pendingPaletteDirection;
   pendingPaletteDirection = undefined;

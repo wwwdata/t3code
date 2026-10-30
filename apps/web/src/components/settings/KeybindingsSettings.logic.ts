@@ -359,6 +359,11 @@ export function buildKeybindingCommandOptions(
 export function commandLabel(command: KeybindingCommand): string {
   if (command === "workspace.focusNext") return "Focus Next Workspace Area";
   if (command === "workspace.focusPrevious") return "Focus Previous Workspace Area";
+  if (command === "workspace.resizePrefix") return "Resize Panes Prefix (then R)";
+  if (command === "workspace.resize") return "Resize Panes";
+  if (command === "workspace.focusComposer") return "Focus Message Input";
+  if (command === "workspace.focusPanel") return "Reveal and Focus Right Panel";
+  if (command === "workspace.focusTerminal") return "Reveal and Focus Terminal";
   if (command === "composer.sendAlternate") return "Composer: Opposite Queue or Steer Action";
   if (command === "composer.sendBackground") return "Composer: Start in Background";
   if (command === "composer.sendAndNewThread") return "Composer: Send and Start New Thread";

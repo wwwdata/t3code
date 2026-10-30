@@ -1,3 +1,4 @@
+import { WORKSPACE_HOST_FOCUS_COMMANDS } from "@t3tools/shared/keybindings";
 import * as NodeZlib from "node:zlib";
 import {
   DesktopPreviewRecordingInputSchema,
@@ -1468,14 +1469,13 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       if (forwarded && host) {
         event.preventDefault();
         if (!input.isAutoRepeat) {
-          if (
-            forwarded.command === "workspace.focusNext" ||
-            forwarded.command === "workspace.focusPrevious"
-          ) {
+          if (WORKSPACE_HOST_FOCUS_COMMANDS.some((command) => command === forwarded.command)) {
             // DOM focus in the renderer cannot by itself release the guest's native keyboard focus.
             host.focus();
           }
-          host.send(MENU_ACTION_CHANNEL, forwarded.command);
+          if (WORKSPACE_HOST_FOCUS_COMMANDS.some((command) => command === forwarded.command))
+            host.send(MENU_ACTION_CHANNEL, forwarded.command, { previewTabId: tabId });
+          else host.send(MENU_ACTION_CHANNEL, forwarded.command);
         }
         return;
       }

@@ -4,6 +4,8 @@ import type { ScopedThreadRef } from "@t3tools/contracts";
 import { selectThreadRightPanelState, useRightPanelStore } from "../rightPanelStore";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 
+import { directionalNeighbor, type WorkspaceDirection } from "./workspaceGeometry";
+
 export type TerminalFocusOwner = "drawer" | "right-panel";
 
 export function getTerminalFocusOwner(): TerminalFocusOwner | null {
@@ -22,6 +24,7 @@ export function isTerminalFocused(): boolean {
 interface TerminalFocusTarget {
   readonly threadRef: ScopedThreadRef;
   readonly terminalId: string;
+  readonly mount?: HTMLElement;
   /** Returns false when the target cannot take focus yet (hidden, or no operate grant). */
   readonly focus: () => boolean;
 }
@@ -179,4 +182,31 @@ export function focusTerminalViewport(input: {
   input.mount.focus({ preventScroll: true });
   input.surface?.focus();
   return input.mount.contains(document.activeElement);
+}
+
+function focusedTerminalTarget() {
+  return Array.from(focusTargets).find((target) => target.mount?.contains(document.activeElement));
+}
+
+export function getFocusedTerminalRectangle(): DOMRect | undefined {
+  return focusedTerminalTarget()?.mount?.getBoundingClientRect();
+}
+
+export function moveTerminalFocus(direction: WorkspaceDirection): boolean {
+  const source = focusedTerminalTarget();
+  const group = source?.mount?.closest("[data-terminal-grid]");
+  if (!source?.mount || !group) return false;
+  const candidates = Array.from(focusTargets).filter(
+    (target) =>
+      target !== source &&
+      target.mount?.closest("[data-terminal-grid]") === group &&
+      target.mount.getClientRects().length > 0,
+  );
+  const neighbor = directionalNeighbor(
+    source.mount.getBoundingClientRect(),
+    candidates,
+    direction,
+    (target) => target.mount!.getBoundingClientRect(),
+  );
+  return neighbor?.focus() ?? false;
 }

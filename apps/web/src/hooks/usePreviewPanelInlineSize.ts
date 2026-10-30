@@ -1,3 +1,4 @@
+import type { SizeEdit } from "../lib/resizeEdit";
 import { useState } from "react";
 
 import { type ResizableWidthHandlers, useResizableWidth } from "./useResizableWidth";
@@ -5,6 +6,9 @@ import { observeResize } from "../lib/observeResize";
 
 export interface PreviewPanelInlineSize {
   readonly width: number;
+  readonly readWidth: () => number;
+  readonly beginKeyboardResize: (host: HTMLElement) => SizeEdit;
+  readonly cancelPointerResize: () => void;
   readonly handlers: ResizableWidthHandlers;
   /** Ref-callback body for the panel host: measures the row the panel shares. */
   readonly observeRow: (host: HTMLElement) => () => void;
@@ -30,13 +34,14 @@ export function usePreviewPanelInlineSize(
   const [maxWidth, setMaxWidth] = useState(() =>
     getPreviewPanelMaxWidth(typeof window === "undefined" ? 1280 : window.innerWidth),
   );
-  const { width, handlers } = useResizableWidth({
-    storageKey: options.widthStorageKey ?? PREVIEW_PANEL_WIDTH_STORAGE_KEY,
-    defaultWidth: options.defaultWidth ?? PREVIEW_PANEL_DEFAULT_WIDTH,
-    minWidth: PREVIEW_PANEL_MIN_WIDTH,
-    maxWidth,
-    edge: "left",
-  });
+  const { width, handlers, readWidth, beginKeyboardResize, cancelPointerResize } =
+    useResizableWidth({
+      storageKey: options.widthStorageKey ?? PREVIEW_PANEL_WIDTH_STORAGE_KEY,
+      defaultWidth: options.defaultWidth ?? PREVIEW_PANEL_DEFAULT_WIDTH,
+      minWidth: PREVIEW_PANEL_MIN_WIDTH,
+      maxWidth,
+      edge: "left",
+    });
   const observeRow = (host: HTMLElement) => {
     const row = container ?? (enabled ? host.parentElement : null) ?? null;
     // Ref callbacks run before paint, so the width is clamped without an over-wide
@@ -62,7 +67,7 @@ export function usePreviewPanelInlineSize(
       stopObserving?.();
     };
   };
-  return { width, handlers, observeRow };
+  return { width, handlers, observeRow, readWidth, beginKeyboardResize, cancelPointerResize };
 }
 
 function getPreviewPanelMaxWidth(viewportWidth: number, containerWidth?: number): number {

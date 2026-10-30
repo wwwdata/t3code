@@ -20,7 +20,11 @@ import {
   type RightPanelSurface,
   useRightPanelStore,
 } from "../../rightPanelStore";
-import { requestWorkspaceContentFocus, requestWorkspaceFocus } from "../../lib/workspaceFocus";
+import {
+  isWorkspaceFocusBlocked,
+  requestWorkspaceContentFocus,
+  requestWorkspaceFocus,
+} from "../../lib/workspaceFocus";
 import { setActivePreviewTab } from "../../previewStateStore";
 import { BrowserSettingsReadError } from "../../browser/openFileInPreview";
 import { addBrowserSurface } from "../preview/addBrowserSurface";
@@ -224,6 +228,12 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     useRightPanelStore.getState().toggleVisibility(activeThreadRef);
     focusActivePanelTerminal(activeThreadRef);
   };
+  const focusRightPanelStable = useStableCallback(() => {
+    if (!activeThreadRef || isWorkspaceFocusBlocked()) return;
+    if (!rightPanelOpen) useRightPanelStore.getState().toggleVisibility(activeThreadRef);
+    focusActivePanelTerminal(activeThreadRef);
+    requestWorkspaceFocus({ area: "panel" });
+  });
   const toggleRightPanelStable = useStableCallback(toggleRightPanel);
   const toggleThreadPanel = () => {
     if (!activeThreadRef) return;
@@ -355,6 +365,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     openFileSurfaceStable,
     toggleRightPanelMaximizedStable,
     toggleRightPanelStable,
+    focusRightPanelStable,
     toggleThreadPanelStable,
   };
 }
