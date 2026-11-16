@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   DEFAULT_UNIFIED_SETTINGS,
@@ -9,8 +9,11 @@ import {
   MIN_CODE_FONT_SIZE,
   MIN_INTERFACE_FONT_SIZE,
   MIN_PROMPT_FONT_SIZE,
+  MAX_TERMINAL_LINE_HEIGHT,
   MIN_TERMINAL_FONT_SIZE,
-  TERMINAL_LINE_HEIGHTS,
+  MIN_TERMINAL_LINE_HEIGHT,
+  roundTerminalLineHeight,
+  TERMINAL_LINE_HEIGHT_STEP,
 } from "@t3tools/contracts/settings";
 import * as Schema from "effect/Schema";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
@@ -214,10 +217,17 @@ function TerminalFontRow() {
 function TerminalLineHeightRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
+  const ratio =
+    (settings.terminalLineHeight - MIN_TERMINAL_LINE_HEIGHT) /
+    (MAX_TERMINAL_LINE_HEIGHT - MIN_TERMINAL_LINE_HEIGHT);
+  const sliderStyle = {
+    "--settings-slider-progress": `${ratio * 100}%`,
+    "--settings-slider-fill-offset": `${0.5 - ratio}rem`,
+  } as CSSProperties;
   return (
     <SettingsRow
       {...searchableSetting("terminal-line-height")}
-      description="Row height as a multiple of the terminal font size."
+      description={`Row height as a multiple of the terminal font size. Default ${DEFAULT_UNIFIED_SETTINGS.terminalLineHeight.toFixed(2)}.`}
       resetAction={
         settings.terminalLineHeight !== DEFAULT_UNIFIED_SETTINGS.terminalLineHeight ? (
           <SettingResetButton
@@ -229,26 +239,31 @@ function TerminalLineHeightRow() {
         ) : null
       }
       control={
-        <Select
-          value={String(settings.terminalLineHeight)}
-          onValueChange={(next) => {
-            const terminalLineHeight = TERMINAL_LINE_HEIGHTS.find(
-              (value) => String(value) === next,
-            );
-            if (terminalLineHeight !== undefined) updateSettings({ terminalLineHeight });
-          }}
-        >
-          <SelectTrigger size="sm" className="w-22 shrink-0" aria-label="Terminal line height">
-            <SelectValue>{settings.terminalLineHeight.toFixed(2)}</SelectValue>
-          </SelectTrigger>
-          <SelectPopup align="end" alignItemWithTrigger={false}>
-            {TERMINAL_LINE_HEIGHTS.map((value) => (
-              <SelectItem hideIndicator key={value} value={String(value)}>
-                {value.toFixed(2)}
-              </SelectItem>
-            ))}
-          </SelectPopup>
-        </Select>
+        <div className="flex w-full items-center gap-3 sm:w-52">
+          <output
+            className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+            htmlFor="terminal-line-height-slider"
+          >
+            {settings.terminalLineHeight.toFixed(2)}
+          </output>
+          <input
+            aria-label="Terminal line height"
+            className="settings-slider min-w-0 flex-1"
+            id="terminal-line-height-slider"
+            max={MAX_TERMINAL_LINE_HEIGHT}
+            min={MIN_TERMINAL_LINE_HEIGHT}
+            onChange={(event) => {
+              const value = Number(event.currentTarget.value);
+              if (Number.isFinite(value)) {
+                updateSettings({ terminalLineHeight: roundTerminalLineHeight(value) });
+              }
+            }}
+            step={TERMINAL_LINE_HEIGHT_STEP}
+            style={sliderStyle}
+            type="range"
+            value={settings.terminalLineHeight}
+          />
+        </div>
       }
     />
   );

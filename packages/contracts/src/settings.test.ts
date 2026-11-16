@@ -20,6 +20,7 @@ import {
   resolveIdleCompaction,
   resolveProjectProviderInstanceEnabled,
   resolveProviderInstanceEnabled,
+  roundTerminalLineHeight,
   ServerSettings,
   ServerSettingsPatch,
   withIdleCompaction,
@@ -338,6 +339,23 @@ describe("ClientSettings terminal line height", () => {
     expect(decodeClientSettingsPatch({})).not.toHaveProperty("terminalLineHeight");
     expect(decodeClientSettings({ terminalLineHeight: 1.6 }).terminalLineHeight).toBe(1.6);
     expect(() => decodeClientSettingsPatch({ terminalLineHeight: 1.37 })).toThrow();
+    expect(() => decodeClientSettingsPatch({ terminalLineHeight: 2.05 })).toThrow();
+  });
+
+  it("snaps to the 0.05 grid, and the schema accepts every grid value", () => {
+    expect(roundTerminalLineHeight(1.35)).toBe(1.35);
+    expect(roundTerminalLineHeight(1.3500000000000001)).toBe(1.35);
+    expect(roundTerminalLineHeight(1.37)).toBe(1.35);
+    expect(roundTerminalLineHeight(1.38)).toBe(1.4);
+    expect(roundTerminalLineHeight(0.5)).toBe(1);
+    expect(roundTerminalLineHeight(3)).toBe(2);
+    for (let steps = 20; steps <= 40; steps += 1) {
+      const value = roundTerminalLineHeight(steps * 0.05);
+      expect(value).toBe(Number((steps * 0.05).toFixed(2)));
+      expect(decodeClientSettingsPatch({ terminalLineHeight: value }).terminalLineHeight).toBe(
+        value,
+      );
+    }
   });
 });
 

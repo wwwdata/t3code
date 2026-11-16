@@ -197,8 +197,23 @@ export const TerminalFontSize = Schema.Int.check(
 export type TerminalFontSize = typeof TerminalFontSize.Type;
 const DEFAULT_TERMINAL_FONT_SIZE: TerminalFontSize = 12;
 
-export const TERMINAL_LINE_HEIGHTS = [1, 1.1, 1.2, 1.25, 1.3, 1.35, 1.4, 1.5, 1.6, 1.8, 2] as const;
-export const TerminalLineHeight = Schema.Literals(TERMINAL_LINE_HEIGHTS);
+export const MIN_TERMINAL_LINE_HEIGHT = 1;
+export const MAX_TERMINAL_LINE_HEIGHT = 2;
+export const TERMINAL_LINE_HEIGHT_STEP = 0.05;
+const TERMINAL_LINE_HEIGHT_STEPS_PER_UNIT = 20;
+// steps / 20 is the double nearest each 0.05 decimal, so 1.35 stays exactly the literal 1.35.
+export function roundTerminalLineHeight(value: number): number {
+  const steps = Math.round(value * TERMINAL_LINE_HEIGHT_STEPS_PER_UNIT);
+  const min = MIN_TERMINAL_LINE_HEIGHT * TERMINAL_LINE_HEIGHT_STEPS_PER_UNIT;
+  const max = MAX_TERMINAL_LINE_HEIGHT * TERMINAL_LINE_HEIGHT_STEPS_PER_UNIT;
+  return Math.min(max, Math.max(min, steps)) / TERMINAL_LINE_HEIGHT_STEPS_PER_UNIT;
+}
+export const TerminalLineHeight = Schema.Finite.check(
+  Schema.isBetween({ minimum: MIN_TERMINAL_LINE_HEIGHT, maximum: MAX_TERMINAL_LINE_HEIGHT }),
+  Schema.makeFilter((value: number) => roundTerminalLineHeight(value) === value, {
+    expected: "a multiple of 0.05",
+  }),
+);
 export type TerminalLineHeight = typeof TerminalLineHeight.Type;
 export const DEFAULT_TERMINAL_LINE_HEIGHT: TerminalLineHeight = 1.35;
 
