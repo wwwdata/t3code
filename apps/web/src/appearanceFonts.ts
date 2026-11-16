@@ -2,6 +2,7 @@ import {
   DEFAULT_CODE_FONT_SIZE,
   DEFAULT_INTERFACE_FONT_SIZE,
   DEFAULT_PROMPT_FONT_SIZE,
+  DEFAULT_TERMINAL_LINE_HEIGHT,
   MAX_CODE_FONT_SIZE,
   MAX_INTERFACE_FONT_SIZE,
   MAX_PROMPT_FONT_SIZE,
@@ -35,6 +36,14 @@ export function resolveTerminalFontSizePreference(input: {
 }): number {
   if (input.advanced) return input.terminal;
   return input.code;
+}
+
+export function resolveTerminalLineHeightPreference(input: {
+  readonly advanced: boolean;
+  readonly terminal: number;
+}): number {
+  if (input.advanced) return input.terminal;
+  return DEFAULT_TERMINAL_LINE_HEIGHT;
 }
 
 function quoteFontFamilyName(name: string): string {

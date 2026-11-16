@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { GhosttyCell, GhosttySnapshot } from "./core";
-import { renderGhosttySnapshot } from "./renderer";
+import { measureGhosttyCell, renderGhosttySnapshot } from "./renderer";
 
 const background = { r: 255, g: 255, b: 255 };
 
@@ -54,6 +54,23 @@ const layout = {
   padding: 4,
   originY: 4,
 };
+
+describe("measureGhosttyCell", () => {
+  it("sizes rows at 1.35x the font size unless a line height is given", () => {
+    const context = scaledContext(1);
+    for (const fontSize of [8, 12, 13, 20]) {
+      const metrics = measureGhosttyCell(context, fontSize, "monospace");
+      expect(metrics.height).toBe(Math.round(fontSize * 1.35));
+      expect(measureGhosttyCell(context, fontSize, "monospace", 1.35)).toEqual(metrics);
+    }
+
+    const tall = measureGhosttyCell(context, 12, "monospace", 2);
+    const base = measureGhosttyCell(context, 12, "monospace");
+    expect(tall.height).toBe(24);
+    expect(tall.width).toBe(base.width);
+    expect(tall.baseline).toBeGreaterThan(base.baseline);
+  });
+});
 
 describe.each([1.25, 2.2])("renderGhosttySnapshot at a %sx device pixel ratio", (scale) => {
   it.each([

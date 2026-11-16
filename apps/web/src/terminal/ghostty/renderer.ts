@@ -1,3 +1,5 @@
+import { DEFAULT_TERMINAL_LINE_HEIGHT } from "@t3tools/contracts/settings";
+
 import {
   GHOSTTY_CELL_WIDE,
   ghosttyColorsEqual,
@@ -176,6 +178,7 @@ export function measureGhosttyCell(
   context: CanvasRenderingContext2D,
   fontSize: number,
   fontFamily: string,
+  lineHeight: number = DEFAULT_TERMINAL_LINE_HEIGHT,
 ): GhosttyCellMetrics {
   context.font = `normal 400 ${fontSize}px ${fontFamily}`;
   const widthMeasurement = context.measureText("M");
@@ -183,7 +186,7 @@ export function measureGhosttyCell(
   const ascent = verticalMeasurement.actualBoundingBoxAscent || fontSize;
   const descent = verticalMeasurement.actualBoundingBoxDescent;
   const glyphHeight = ascent + descent;
-  const height = Math.max(1, Math.round(fontSize * 1.35), Math.ceil(glyphHeight));
+  const height = Math.max(1, Math.round(fontSize * lineHeight), Math.ceil(glyphHeight));
   return {
     width: Math.max(1, widthMeasurement.width),
     height,

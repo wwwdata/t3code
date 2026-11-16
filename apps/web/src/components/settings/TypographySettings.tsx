@@ -10,6 +10,7 @@ import {
   MIN_INTERFACE_FONT_SIZE,
   MIN_PROMPT_FONT_SIZE,
   MIN_TERMINAL_FONT_SIZE,
+  TERMINAL_LINE_HEIGHTS,
 } from "@t3tools/contracts/settings";
 import * as Schema from "effect/Schema";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
@@ -203,7 +204,51 @@ function TerminalFontRow() {
             terminal: settings.fontFamilyTerminal,
           })}
           size={settings.fontSizeTerminal}
+          lineHeight={settings.terminalLineHeight}
         />
+      }
+    />
+  );
+}
+
+function TerminalLineHeightRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      {...searchableSetting("terminal-line-height")}
+      description="Row height as a multiple of the terminal font size."
+      resetAction={
+        settings.terminalLineHeight !== DEFAULT_UNIFIED_SETTINGS.terminalLineHeight ? (
+          <SettingResetButton
+            label="terminal line height"
+            onClick={() =>
+              updateSettings({ terminalLineHeight: DEFAULT_UNIFIED_SETTINGS.terminalLineHeight })
+            }
+          />
+        ) : null
+      }
+      control={
+        <Select
+          value={String(settings.terminalLineHeight)}
+          onValueChange={(next) => {
+            const terminalLineHeight = TERMINAL_LINE_HEIGHTS.find(
+              (value) => String(value) === next,
+            );
+            if (terminalLineHeight !== undefined) updateSettings({ terminalLineHeight });
+          }}
+        >
+          <SelectTrigger size="sm" className="w-22 shrink-0" aria-label="Terminal line height">
+            <SelectValue>{settings.terminalLineHeight.toFixed(2)}</SelectValue>
+          </SelectTrigger>
+          <SelectPopup align="end" alignItemWithTrigger={false}>
+            {TERMINAL_LINE_HEIGHTS.map((value) => (
+              <SelectItem hideIndicator key={value} value={String(value)}>
+                {value.toFixed(2)}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
       }
     />
   );
@@ -271,6 +316,7 @@ function FontSettingsGroup() {
       <PromptFontRow />
       <CodeFontRow />
       <TerminalFontRow />
+      <TerminalLineHeightRow />
     </>
   );
 }

@@ -332,6 +332,15 @@ describe("ClientSettings notifications", () => {
   });
 });
 
+describe("ClientSettings terminal line height", () => {
+  it("keeps the 1.35 row height for settings that never set it", () => {
+    expect(decodeClientSettings({}).terminalLineHeight).toBe(1.35);
+    expect(decodeClientSettingsPatch({})).not.toHaveProperty("terminalLineHeight");
+    expect(decodeClientSettings({ terminalLineHeight: 1.6 }).terminalLineHeight).toBe(1.6);
+    expect(() => decodeClientSettingsPatch({ terminalLineHeight: 1.37 })).toThrow();
+  });
+});
+
 describe("ClientSettings quit confirmation", () => {
   it.each([
     [true, "hold"],

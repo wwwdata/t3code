@@ -51,6 +51,7 @@ const TERMINAL_FONT_LOAD_VARIANTS = [
 export interface GhosttyTerminalFont {
   readonly family?: string;
   readonly size?: number;
+  readonly lineHeight?: number;
 }
 
 let symbolsFontLoad: Promise<void> | null = null;
@@ -565,6 +566,7 @@ export class GhosttyTerminalSurface {
   private fontFamily: string;
   private requestedFontFamily: string | undefined;
   private fontSize: number;
+  private lineHeight: number | undefined;
   private fontEpoch = 0;
   private pendingFontEpoch: number | null = null;
   private readonly stopObservingResize: () => void;
@@ -681,6 +683,7 @@ export class GhosttyTerminalSurface {
     this.fontFamily = fontFamily;
     this.requestedFontFamily = options.font?.family;
     this.fontSize = terminalFontSize(options.font?.size);
+    this.lineHeight = options.font?.lineHeight;
     this.installEvents();
     // The input is mounted before the core loads, so focus can land before the listeners.
     this.focused = document.activeElement === input;
@@ -732,7 +735,7 @@ export class GhosttyTerminalSurface {
       await ensureTerminalSymbolsFont();
     } catch {}
     const fontFamily = await loadTerminalFontFamily(options.font?.family, fontSize);
-    const metrics = measureGhosttyCell(context, fontSize, fontFamily);
+    const metrics = measureGhosttyCell(context, fontSize, fontFamily, options.font?.lineHeight);
     const grid = terminalGridSize(mount.clientWidth, mount.clientHeight, metrics, CONTENT_PADDING);
     const core = await GhosttyTerminalCore.create(
       grid.cols,
@@ -831,11 +834,17 @@ export class GhosttyTerminalSurface {
     this.fontFamily = fontFamily;
     this.requestedFontFamily = font.family;
     this.fontSize = fontSize;
+    this.lineHeight = font.lineHeight;
     this.applyFontMetrics();
   }
 
   private applyFontMetrics(): void {
-    this.metrics = measureGhosttyCell(this.context, this.fontSize, this.fontFamily);
+    this.metrics = measureGhosttyCell(
+      this.context,
+      this.fontSize,
+      this.fontFamily,
+      this.lineHeight,
+    );
     this.core.resize(this.cols, this.rows, this.metrics.width, this.metrics.height);
     this.inputLeft = -1;
     this.inputTop = -1;
@@ -862,7 +871,12 @@ export class GhosttyTerminalSurface {
       this.applyFontMetrics();
       return;
     }
-    const metrics = measureGhosttyCell(this.context, this.fontSize, this.fontFamily);
+    const metrics = measureGhosttyCell(
+      this.context,
+      this.fontSize,
+      this.fontFamily,
+      this.lineHeight,
+    );
     if (
       metrics.width === this.metrics.width &&
       metrics.height === this.metrics.height &&

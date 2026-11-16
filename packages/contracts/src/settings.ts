@@ -197,6 +197,11 @@ export const TerminalFontSize = Schema.Int.check(
 export type TerminalFontSize = typeof TerminalFontSize.Type;
 const DEFAULT_TERMINAL_FONT_SIZE: TerminalFontSize = 12;
 
+export const TERMINAL_LINE_HEIGHTS = [1, 1.1, 1.2, 1.25, 1.3, 1.35, 1.4, 1.5, 1.6, 1.8, 2] as const;
+export const TerminalLineHeight = Schema.Literals(TERMINAL_LINE_HEIGHTS);
+export type TerminalLineHeight = typeof TerminalLineHeight.Type;
+export const DEFAULT_TERMINAL_LINE_HEIGHT: TerminalLineHeight = 1.35;
+
 // "artwork" follows the running channel and shows nothing on Latest. The fixed artwork
 // modes let any channel opt into a specific channel's art.
 export const EnvironmentIdentificationMode = Schema.Literals([
@@ -492,6 +497,9 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   fontSizeTerminal: TerminalFontSize.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TERMINAL_FONT_SIZE)),
+  ),
+  terminalLineHeight: TerminalLineHeight.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_TERMINAL_LINE_HEIGHT)),
   ),
   fontFamilyCode: FontFamilyPreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   fontFamilyComposer: FontFamilyPreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
@@ -2081,6 +2089,7 @@ export const ClientSettingsPatch = Schema.Struct({
   fontSizePrompt: Schema.optionalKey(PromptFontSize),
   fontSizeCode: Schema.optionalKey(CodeFontSize),
   fontSizeTerminal: Schema.optionalKey(TerminalFontSize),
+  terminalLineHeight: Schema.optionalKey(TerminalLineHeight),
   fontFamilyCode: Schema.optionalKey(FontFamilyPreference),
   fontFamilyComposer: Schema.optionalKey(FontFamilyPreference),
   fontFamilySans: Schema.optionalKey(FontFamilyPreference),

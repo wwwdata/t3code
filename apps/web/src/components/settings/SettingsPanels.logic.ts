@@ -86,6 +86,7 @@ type TypographySettings = Pick<
   | "fontSizePrompt"
   | "fontSizeCode"
   | "fontSizeTerminal"
+  | "terminalLineHeight"
 >;
 
 export function getChangedTypographySettingLabels(settings: TypographySettings): string[] {
@@ -105,6 +106,9 @@ export function getChangedTypographySettingLabels(settings: TypographySettings):
     ...(settings.fontFamilyTerminal !== DEFAULT_UNIFIED_SETTINGS.fontFamilyTerminal ||
     settings.fontSizeTerminal !== DEFAULT_UNIFIED_SETTINGS.fontSizeTerminal
       ? ["Terminal font"]
+      : []),
+    ...(settings.terminalLineHeight !== DEFAULT_UNIFIED_SETTINGS.terminalLineHeight
+      ? ["Terminal line height"]
       : []),
   ];
 }
