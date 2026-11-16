@@ -7,6 +7,7 @@ import {
   type GhosttyColor,
   type GhosttySnapshot,
 } from "./core";
+import { buildSprite, type Sprite, spriteCodePoint, spriteLineWidth } from "./sprites";
 
 export interface GhosttyCellMetrics {
   readonly width: number;
@@ -83,6 +84,73 @@ function fillSolidPowerlineSeparator(
   context.fill();
 }
 
+const spriteCache = new Map<string, Sprite | null>();
+const SPRITE_CACHE_LIMIT = 4096;
+
+function cachedSprite(codePoint: number, width: number, height: number, light: number) {
+  const key = `${codePoint}:${width}:${height}:${light}`;
+  let sprite = spriteCache.get(key);
+  if (sprite === undefined) {
+    if (spriteCache.size >= SPRITE_CACHE_LIMIT) spriteCache.clear();
+    sprite = buildSprite(codePoint, width, height, light);
+    spriteCache.set(key, sprite);
+  }
+  return sprite;
+}
+
+// Sprites draw in device pixels on whole-pixel cell edges, so neighbouring cells share an edge.
+function fillSprite(
+  context: CanvasRenderingContext2D,
+  codePoint: number,
+  color: string,
+  cssLeft: number,
+  cssTop: number,
+  cssRight: number,
+  cssBottom: number,
+  light: number,
+): void {
+  const transform = context.getTransform();
+  const left = Math.round(cssLeft * transform.a + transform.e);
+  const top = Math.round(cssTop * transform.d + transform.f);
+  const width = Math.round(cssRight * transform.a + transform.e) - left;
+  const height = Math.round(cssBottom * transform.d + transform.f) - top;
+  if (width <= 0 || height <= 0) return;
+  const sprite = cachedSprite(codePoint, width, height, light);
+  if (!sprite) return;
+  context.save();
+  context.resetTransform();
+  context.fillStyle = color;
+  for (const part of sprite.rects) {
+    context.globalAlpha = part.alpha;
+    context.fillRect(left + part.x, top + part.y, part.width, part.height);
+  }
+  if (sprite.strokes.length > 0) {
+    context.globalAlpha = 1;
+    context.beginPath();
+    context.rect(left, top, width, height);
+    context.clip();
+    context.strokeStyle = color;
+    context.lineWidth = sprite.lineWidth;
+    context.lineCap = "square";
+    context.beginPath();
+    for (const stroke of sprite.strokes) {
+      context.moveTo(left + stroke.from[0], top + stroke.from[1]);
+      if (stroke.kind === "arc") {
+        context.arcTo(
+          left + stroke.corner[0],
+          top + stroke.corner[1],
+          left + stroke.to[0],
+          top + stroke.to[1],
+          stroke.radius,
+        );
+      }
+      context.lineTo(left + stroke.to[0], top + stroke.to[1]);
+    }
+    context.stroke();
+  }
+  context.restore();
+}
+
 function ghosttyTextRunEnd(
   cells: readonly GhosttyCell[],
   start: number,
@@ -96,7 +164,14 @@ function ghosttyTextRunEnd(
       end += 1;
       continue;
     }
-    if (next.text.length === 0 || isSolidPowerlineSeparator(next.text) || !sameStyle(next)) break;
+    if (
+      next.text.length === 0 ||
+      isSolidPowerlineSeparator(next.text) ||
+      spriteCodePoint(next.text) !== null ||
+      !sameStyle(next)
+    ) {
+      break;
+    }
     end += 1;
   }
   return end;
@@ -242,6 +317,7 @@ export function renderGhosttySnapshot(options: {
   const rowTop = (row: number) =>
     Math.round((originY + row * metrics.height) * transform.d) / transform.d;
   const rowWidth = context.canvas.width / transform.a;
+  const spriteLight = spriteLineWidth(metrics.width * transform.a);
   const rowsToDraw = forceFull
     ? Array.from({ length: snapshot.rows }, (_, index) => index)
     : [...snapshot.dirtyRows];
@@ -330,6 +406,24 @@ export function renderGhosttySnapshot(options: {
         runStart += 1;
         continue;
       }
+      const spriteCode = spriteCodePoint(first.text);
+      if (spriteCode !== null) {
+        if (!first.invisible) {
+          const left = padding + runStart * metrics.width;
+          fillSprite(
+            context,
+            spriteCode,
+            cssColor(first.foreground),
+            left,
+            top,
+            left + metrics.width,
+            top + height,
+            spriteLight,
+          );
+        }
+        runStart += 1;
+        continue;
+      }
       const runEnd = ghosttyTextRunEnd(row.cells, runStart, (cell) => sameTextStyle(cell, first));
       const text = row.cells
         .slice(runStart, runEnd)
@@ -406,8 +500,20 @@ export function renderGhosttySnapshot(options: {
       context.fillRect(left, top, width, height);
       context.fillStyle = cssColor(snapshot.background);
       if (cell?.text && !cell.invisible) {
+        const spriteCode = spriteCodePoint(cell.text);
         if (isSolidPowerlineSeparator(cell.text)) {
           fillSolidPowerlineSeparator(context, cell.text, left, top, metrics.width, height, 0);
+        } else if (spriteCode !== null) {
+          fillSprite(
+            context,
+            spriteCode,
+            cssColor(snapshot.background),
+            left,
+            top,
+            left + metrics.width,
+            top + height,
+            spriteLight,
+          );
         } else {
           context.font = fontForCell(cell, fontSize, fontFamily);
           context.textAlign = wide ? "center" : "start";

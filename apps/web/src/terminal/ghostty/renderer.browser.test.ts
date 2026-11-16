@@ -72,6 +72,71 @@ describe("measureGhosttyCell", () => {
   });
 });
 
+describe.each([1, 1.35])("box drawing at a %s line height", (lineHeight) => {
+  it.each([1, 2])(
+    "draws │ and █ continuously down a column at a %sx device pixel ratio",
+    (scale) => {
+      const probe = scaledContext(scale);
+      const metrics = measureGhosttyCell(probe, 13, "monospace", lineHeight);
+      const rows = 3;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil((metrics.width * 2 + 8) * scale);
+      canvas.height = Math.ceil((metrics.height * rows + 8) * scale);
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("2D canvas unavailable");
+      context.setTransform(scale, 0, 0, scale, 0, 0);
+      const cells = [
+        { ...blank, text: "│" },
+        { ...blank, text: "█" },
+      ];
+      const snapshot: GhosttySnapshot = {
+        cols: 2,
+        rows,
+        foreground: { r: 0, g: 0, b: 0 },
+        background,
+        cursor: { r: 0, g: 0, b: 0 },
+        cursorX: 0,
+        cursorY: 0,
+        cursorVisible: false,
+        cursorBlinking: false,
+        cursorStyle: 1,
+        dirtyRows: new Set(),
+        rowData: Array.from({ length: rows }, () => ({
+          cells,
+          text: "",
+          isWrapContinuation: false,
+          wrapsToNext: false,
+        })),
+      };
+      renderGhosttySnapshot({
+        context,
+        snapshot,
+        metrics,
+        fontSize: 13,
+        fontFamily: "monospace",
+        padding: 4,
+        forceFull: true,
+        cursorOn: false,
+      });
+
+      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+      const dark = (x: number, y: number) => data[(y * canvas.width + x) * 4]! < 128;
+      const top = Math.round(4 * scale);
+      const bottom = Math.round((4 + rows * metrics.height) * scale);
+      const lineLeft = Math.round(4 * scale);
+      const lineRight = Math.round((4 + metrics.width) * scale);
+      const blockRight = Math.round((4 + metrics.width * 2) * scale);
+      for (let y = top; y < bottom; y += 1) {
+        let line = false;
+        for (let x = lineLeft; x < lineRight; x += 1) line ||= dark(x, y);
+        expect([y, line]).toEqual([y, true]);
+        for (let x = lineRight; x < blockRight; x += 1)
+          expect([x, y, dark(x, y)]).toEqual([x, y, true]);
+      }
+    },
+  );
+});
+
 describe.each([1.25, 2.2])("renderGhosttySnapshot at a %sx device pixel ratio", (scale) => {
   it.each([
     ["bar", 0],
